@@ -1,0 +1,12 @@
+{
+  "name": "packrat",
+  "owner": { "name": "Packrat Labs", "url": "https://packrat.sh" },
+  "description": "Packrat's plugin for Claude Code",
+  "plugins": [
+    {
+      "name": "packrat",
+      "source": "./",
+      "description": "How a pull request went in production, watches, SQL over production telemetry, and a Follow-up section on every pull request."
+    }
+  ]
+}
