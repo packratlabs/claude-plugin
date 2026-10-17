@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Before gh pr create runs: refuse a description with no Follow-up section, and say what to add.
+# A pull request opened in the browser or from a template it cannot read is let through.
+set -uo pipefail
+
+command=$(jq -r '.tool_input.command // ""')
+[[ "$command" =~ gh[[:space:]]+pr[[:space:]]+create ]] || exit 0
+[[ "$command" =~ (--web|-w)([[:space:]]|$) ]] && exit 0
+
+body="$command"
+if [[ "$command" =~ (--body-file|-F)[[:space:]]+([^[:space:]]+) ]]; then
+  file="${BASH_REMATCH[2]}"
+  file="${file%\"}"; file="${file#\"}"; file="${file%\'}"; file="${file#\'}"
+  [ "$file" = "-" ] && exit 0
+  [ -f "$file" ] && body=$(cat "$file")
+elif ! [[ "$command" =~ (--body|-b)[[:space:]=] ]]; then
+  exit 0
+fi
+
+grep -Eiq '^[[:space:]]*#{1,6}[[:space:]]+follow[- ]?ups?' <<<"$body" && exit 0
+
+jq -n '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny",
+  permissionDecisionReason: "The pull request has no \"## Follow-up\" section. Packrat judges the deploy against it. Add one (see the packrat:follow-up skill): what proves the change worked in production, how to check it, and when the answer is expected. Then run gh pr create again."}}'
