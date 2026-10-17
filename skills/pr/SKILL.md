@@ -2,7 +2,7 @@
 name: pr
 description: How a GitHub pull request went in production, from Packrat. Use when someone pastes a pull request URL or names a pull request number ("PR 482", "#482") and asks how it went, whether it worked, what Packrat found, or to follow up on it — and to ask Packrat's analyst to verify a pull request at a later time, or to see whether that check came back.
 argument-hint: "<pull request number or URL>"
-allowed-tools: Bash(packrat pr:*), Bash(packrat open:*), Bash(packrat sql:*), Bash(packrat watch:*)
+allowed-tools: Bash(packrat pr:*), Bash(packrat open:*), Bash(packrat sql:*), Bash(packrat check:*)
 ---
 
 # A pull request in Packrat
@@ -26,17 +26,17 @@ packrat pr <number or URL> --json
   not), `too_early`, `not_observable`, or `null` before the analyst's first look — and `intent`
   (what the pull request asked for), `evidence` (what the data showed), `next_step`, and `follow_up`
   (the pull request's own Follow-up section).
-- `watches`: what was asked to be verified later for this pull request, with `due_at`, and `outcome`
+- `checks`: what was asked to be verified later for this pull request, with `due_at`, and `outcome`
   once the analyst has closed it.
 - `report` on a deploy is the analyst's mail. `packrat open https://query.packrat.sh/reports/<report>`
   reads it, with the SQL it ran and what came back.
 
-Tell the person, in a few lines: the verdict and its evidence, the next step, and each watch with its
+Tell the person, in a few lines: the verdict and its evidence, the next step, and each check with its
 due time or its outcome. Then stop and let them choose; do not start work on your own.
 
 When there is no deploy: say that the pull request has not shipped yet, or, when `repository` is
 empty, that the app's GitHub repository is not connected in Packrat (the app's Analyst page). When
-`analysed` is false, the analyst is off for the app, so no deploy gets a verdict and no watch is
+`analysed` is false, the analyst is off for the app, so no deploy gets a verdict and no check is
 read. The app is the one connected to the pull request's repository; `--app <service>` names another.
 
 ## 2. When they ask why, or to fix it
@@ -56,7 +56,7 @@ traffic comes back: ask Packrat's analyst to verify it then. Do not leave it as 
 4. Send it, with `--due` as the first time it can be true, in UTC, at most 30 days ahead:
 
 ```bash
-packrat pr <number or URL> watch --due 2026-10-20T21:00Z <<'TEXT'
+packrat pr <number or URL> check --due 2026-10-20T21:00Z <<'TEXT'
 The gift card total is right on every checkout since the fix: no checkout where the charged amount
 differs from the page total. If any, reopen #482 with the trace ids.
 
@@ -66,5 +66,5 @@ TEXT
 ```
 
 The analyst runs it in its first look after that time and mails the team what the data showed, in
-the thread of the pull request's verdict mail. `packrat pr <number>` lists the watch until then.
-To change a watch, close it with `packrat watch close <wch_id>` and send another.
+the thread of the pull request's verdict mail. `packrat pr <number>` lists the check until then.
+To change a check, close it with `packrat check close <chk_id>` and send another.

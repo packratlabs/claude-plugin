@@ -6,7 +6,7 @@
     {
       "name": "packrat",
       "source": "./",
-      "description": "How a pull request went in production, watches, SQL over production telemetry, and a Follow-up section on every pull request."
+      "description": "How a pull request went in production, checks, SQL over production telemetry, and a Follow-up section on every pull request."
     }
   ]
 }

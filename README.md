@@ -23,7 +23,7 @@ release's checksums.
 
 | | |
 | --- | --- |
-| `/packrat:pr 482`, or a pull request URL | The analyst's verdict on each deploy that shipped it, the evidence, the next step, and its watches. Ask it to verify something later, and the answer is mailed in the thread of the verdict. |
+| `/packrat:pr 482`, or a pull request URL | The analyst's verdict on each deploy that shipped it, the evidence, the next step, and its checks. Ask it to verify something later, and the answer is mailed in the thread of the verdict. |
 | A pasted Packrat link (`packrat:open`) | A report, the `curl` line at the end of a Packrat mail, an Analyst page, an issue, a replay, any page of an app, or a docs page, read with your key. |
 | `packrat:query` | Investigating production in SQL with `packrat sql`. Claude uses it when you ask what production did. |
 | `packrat:follow-up` | Writes the "Follow-up" section of each pull request: what proves the change worked, how to check it, and when. Packrat judges the deploy against it. A hook refuses `gh pr create` with a description that has none. |
