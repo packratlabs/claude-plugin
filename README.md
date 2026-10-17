@@ -1,7 +1,8 @@
 # Packrat for Claude Code
 
 How a pull request went in production, a check that runs later, a Packrat link read in place, and SQL
-over every trace and log line your app sent to [Packrat](https://packrat.sh).
+over every trace and log line your app sent to [Packrat](https://packrat.sh), all through the
+[packrat CLI](https://github.com/packratlabs/packrat-cli).
 
 ## Install
 
@@ -11,7 +12,7 @@ over every trace and log line your app sent to [Packrat](https://packrat.sh).
 ! packrat login
 ```
 
-`packrat login` opens your browser, where you approve the code and choose the org. It makes a key for
+`packrat login` opens your browser, where you approve the code. It makes a key for
 you on this machine, kept in the macOS Keychain (elsewhere in `~/.config/packrat/credentials.json`);
 Claude runs `packrat` and never sees it. In CI, set `PACKRAT_API_KEY` instead.
 
@@ -23,10 +24,8 @@ release's checksums.
 
 | | |
 | --- | --- |
-| `/packrat:pr 482`, or a pull request URL | The analyst's verdict on each deploy that shipped it, the evidence, the next step, and its checks. Ask it to verify something later, and the answer is mailed in the thread of the verdict. |
-| A pasted Packrat link (`packrat:open`) | A report, the `curl` line at the end of a Packrat mail, an Analyst page, an issue, a replay, any page of an app, or a docs page, read with your key. |
-| `packrat:query` | Investigating production in SQL with `packrat sql`. Claude uses it when you ask what production did. |
+| `packrat:pr` | Packrat through the CLI: how a pull request went (`/packrat:pr 482`), a pasted Packrat link, a question about production, or a check for the analyst to run later. Claude reads `packrat help` for the commands. |
 | `packrat:follow-up` | Writes the "Follow-up" section of each pull request: what proves the change worked, how to check it, and when. Packrat judges the deploy against it. A hook refuses `gh pr create` with a description that has none. |
 
 You do not have to type the commands: mention a pull request, paste a Packrat link, or ask why
-something is slow, and Claude picks the skill.
+something is slow, and Claude uses the skill.

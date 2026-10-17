@@ -34,4 +34,4 @@ whose result is invisible cannot be verified.
 ```
 
 When something can only be checked later than the first look — a job that runs next week — ask
-Packrat to verify it then, with the `packrat:pr` skill (`packrat check add --pull <number>`), once the pull request has a number.
+Packrat to verify it then, with `packrat check add --pull <number>` (the `packrat:pr` skill), once the pull request has a number.
