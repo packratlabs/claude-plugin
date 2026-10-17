@@ -19,7 +19,7 @@ in their browser. Do not try to sign in for them.
 ## 1. Read what Packrat has
 
 ```bash
-packrat pr <number or URL> --json
+packrat pr show <number or URL> --json
 ```
 
 - `deploys`, newest first. Each has `verdict` — `confirmed` (it worked), `partly`, `refuted` (it did
@@ -56,7 +56,7 @@ traffic comes back: ask Packrat's analyst to verify it then. Do not leave it as 
 4. Send it, with `--due` as the first time it can be true, in UTC, at most 30 days ahead:
 
 ```bash
-packrat pr <number or URL> check --due 2026-10-20T21:00Z <<'TEXT'
+packrat check add --pull <number> --due 2026-10-20T21:00Z <<'TEXT'
 The gift card total is right on every checkout since the fix: no checkout where the charged amount
 differs from the page total. If any, reopen #482 with the trace ids.
 
@@ -66,5 +66,5 @@ TEXT
 ```
 
 The analyst runs it in its first look after that time and mails the team what the data showed, in
-the thread of the pull request's verdict mail. `packrat pr <number>` lists the check until then.
+the thread of the pull request's verdict mail. `packrat pr show <number>` lists the check until then.
 To change a check, close it with `packrat check close <chk_id>` and send another.
