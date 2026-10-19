@@ -1,8 +1,11 @@
 {
   "name": "packrat",
   "version": "0.1.0",
-  "description": "Packrat in Claude Code: how a pull request went in production, Packrat links, SQL over production telemetry, checks to verify later, and a Follow-up section on every pull request.",
-  "author": { "name": "Packrat Labs", "url": "https://packrat.sh" },
+  "description": "Read Packrat production data in Claude Code: pull request verdicts, Packrat links, SQL queries over traces and logs, scheduled checks, and Follow-up sections for pull requests.",
+  "author": {
+    "name": "Packrat Labs",
+    "url": "https://packrat.sh"
+  },
   "homepage": "https://packrat.sh/docs/claude-code-plugin",
   "repository": "https://github.com/packratlabs/claude-plugin",
   "license": "MIT"

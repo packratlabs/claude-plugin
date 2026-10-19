@@ -20,4 +20,4 @@ fi
 grep -Eiq '(^|["'"'"'=])[[:space:]]*#{1,6}[[:space:]]+follow[- ]?ups?' <<<"$body" && exit 0
 
 jq -n '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny",
-  permissionDecisionReason: "The pull request has no \"## Follow-up\" section. Packrat judges the deploy against it. Add one (see the packrat:follow-up skill): what proves the change worked in production, how to check it, and when the answer is expected. Then run gh pr create again."}}'
+  permissionDecisionReason: "The pull request description has no \"## Follow-up\" section. Packrat uses this section to verify the deploy. Add one (see the packrat:follow-up skill) that states what shows the change worked in production, how to check it, and when the result is expected. Then run gh pr create again."}}'
