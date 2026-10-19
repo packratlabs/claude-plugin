@@ -1,31 +1,68 @@
 # Packrat for Claude Code
 
-How a pull request went in production, a check that runs later, a Packrat link read in place, and SQL
-over every trace and log line your app sent to [Packrat](https://packrat.sh), all through the
-[packrat CLI](https://github.com/packratlabs/packrat-cli).
+The Packrat plugin for Claude Code gives Claude access to your app's production data in
+[Packrat](https://packrat.sh). Claude can use it to:
 
-## Install
+- Report how a pull request performed after it was deployed, including the analyst's verdict.
+- Read Packrat links, such as a report linked from a Packrat email.
+- Query your traces and logs with SQL to investigate production issues.
+- Schedule a check that the analyst runs at a later time, with the result sent by email.
+- Add a Follow-up section to each pull request, which Packrat uses to verify the deploy.
+
+## Prerequisites
+
+- [Claude Code](https://claude.com/claude-code)
+- A Packrat account with at least one app sending data
+
+## Install the plugin
+
+Add the marketplace and install the plugin from within Claude Code:
 
 ```
 /plugin marketplace add packratlabs/claude-plugin
 /plugin install packrat@packrat
+```
+
+The plugin runs the [Packrat CLI](https://github.com/packratlabs/packrat-cli). If `packrat` is already
+on your `PATH`, the plugin uses that installation. Otherwise, it downloads the CLI on first use and
+verifies it against the release checksums.
+
+## Authenticate
+
+Sign in from Claude Code:
+
+```
 ! packrat login
 ```
 
-`packrat login` opens your browser, where you approve the code. It makes a key for
-you on this machine, kept in the macOS Keychain (elsewhere in `~/.config/packrat/credentials.json`);
-Claude runs `packrat` and never sees it. In CI, set `PACKRAT_API_KEY` instead.
+The command opens your browser to approve the sign-in. It stores an API key on your machine: in the
+macOS Keychain, or in `~/.config/packrat/credentials.json` on other platforms. Claude runs `packrat`
+commands with this key but does not have access to the key itself.
 
-The plugin runs the [packrat CLI](https://github.com/packratlabs/packrat-cli). If `packrat` is on your
-`PATH`, it uses that one; otherwise it downloads the pinned release once and checks it against the
-release's checksums.
+In CI, set the `PACKRAT_API_KEY` environment variable instead.
 
-## What it adds
+## Usage
 
-| | |
+Claude uses the plugin when your request involves production. You don't need to run commands
+directly. For example:
+
+| Request | What Claude does |
 | --- | --- |
-| `packrat:pr` | Packrat through the CLI: how a pull request went (`/packrat:pr 482`), a pasted Packrat link, a question about production, or a check for the analyst to run later. Claude reads `packrat help` for the commands. |
-| `packrat:follow-up` | Writes the "Follow-up" section of each pull request: what proves the change worked, how to check it, and when. Packrat judges the deploy against it. A hook refuses `gh pr create` with a description that has none. |
+| "How did PR 482 do?" or `/packrat:ask PR 482` | Shows the analyst's verdict for each deploy of the pull request, with the evidence and any pending checks. |
+| A pasted Packrat link | Reads the page with your API key and summarizes it. |
+| "Why is checkout slow?" | Queries your traces and logs with `packrat sql`. |
+| "Check that the cleanup job ran on Monday." | Schedules a check with `packrat check add`. The analyst emails the result. |
 
-You do not have to type the commands: mention a pull request, paste a Packrat link, or ask why
-something is slow, and Claude uses the skill.
+### Follow-up sections
+
+When Claude creates a pull request with `gh pr create`, the plugin requires a `## Follow-up` section
+in the description. The section states what shows the change worked in production, how to check it,
+and when the result is expected. If the section is missing, the plugin blocks the command and asks
+Claude to add one.
+
+## Skills
+
+| Skill | Description |
+| --- | --- |
+| `packrat:ask` | The entry point to Packrat. Answers questions about production through the CLI: pull requests, Packrat links, SQL queries and checks. |
+| `packrat:follow-up` | Writes the Follow-up section of a pull request. |
