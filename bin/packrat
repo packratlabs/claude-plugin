@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# The packrat CLI for Claude Code. A packrat already on the PATH is used; otherwise the pinned
+# The packrat CLI for Claude Code. A packrat already on the PATH is used; otherwise the newest
 # release is downloaded once, checked against the release's checksums.txt, and kept in the cache.
+# packrat update replaces the cached copy in place.
 set -euo pipefail
 
-VERSION="0.1.0"
 REPO="packratlabs/packrat-cli"
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -12,7 +12,7 @@ for dir in "${dirs[@]}"; do
   [ -n "$dir" ] && [ "$(cd "$dir" 2>/dev/null && pwd)" != "$here" ] && [ -x "$dir/packrat" ] && exec "$dir/packrat" "$@"
 done
 
-cache="${XDG_CACHE_HOME:-$HOME/.cache}/packrat/cli/$VERSION"
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/packrat/cli"
 binary="$cache/packrat"
 if [ ! -x "$binary" ]; then
   os=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -21,10 +21,10 @@ if [ ! -x "$binary" ]; then
   case "$os" in darwin|linux) ;; *) echo "packrat: no release for $os here; install it from https://github.com/$REPO/releases" >&2; exit 1 ;; esac
 
   archive="packrat_${os}_${arch}.tar.gz"
-  base="https://github.com/$REPO/releases/download/v$VERSION"
+  base="https://github.com/$REPO/releases/latest/download"
   work=$(mktemp -d)
   trap 'rm -rf "$work"' EXIT
-  echo "packrat: downloading packrat $VERSION, one time" >&2
+  echo "packrat: downloading the newest packrat, one time" >&2
   curl -fsSL "$base/$archive" -o "$work/$archive"
   curl -fsSL "$base/checksums.txt" -o "$work/checksums.txt"
   want=$(awk -v name="$archive" '$2 == name { print $1 }' "$work/checksums.txt")
