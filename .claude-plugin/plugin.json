@@ -1,7 +1,7 @@
 {
   "name": "packrat",
   "version": "0.1.0",
-  "description": "Read Packrat production data in Claude Code: pull request verdicts, Packrat links, SQL queries over traces and logs, scheduled checks, and Follow-up sections for pull requests.",
+  "description": "Query your Packrat data, write PR verification follow-ups, and check how deploys are performing in production.",
   "author": {
     "name": "Packrat Labs",
     "url": "https://packrat.sh"
