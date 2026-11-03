@@ -1,6 +1,6 @@
 {
   "name": "packrat",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Query your Packrat data, write PR verification follow-ups, and check how deploys are performing in production.",
   "author": {
     "name": "Packrat Labs",

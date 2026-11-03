@@ -38,5 +38,10 @@ a request took).
 
 ### Later checks
 
-If a result can only be verified later, such as a job that runs next week, create a check with
-`packrat check add --pull <number>` after the pull request has a number.
+Do not create a check for a result the Follow-up section already gives a time for, such as the first
+run of a job the day after deploy. After the deploy, Packrat opens a check for each item that states
+when its result is expected, so a check you create would duplicate it.
+
+Use `packrat check add --pull <number>` only after the pull request is deployed, for something the
+Follow-up section does not cover. `--due` is a fixed UTC time, so it cannot express "a day after
+deploy" before the merge.
