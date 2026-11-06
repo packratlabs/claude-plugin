@@ -115,7 +115,7 @@ export const register: Register = (on, options) => {
         $.clock.every(1_000, () => $.ui.invalidate('ui.render'))
         isStarted = true
       }
-      await $.ui.open({ id: PANE, title: 'PR Verifications', focus: true })
+      await $.ui.open({ id: PANE, title: 'Packrat PR Verifications', focus: true })
       void refresh($)
 
       return { text: `Opened PR Verifications for ${repo}.` }
@@ -156,6 +156,10 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
+        <Text wrap="truncate-end">
+          <Text bold>Packrat PR Verifications</Text>
+          <Text dimColor> · {prs.find(pr => pr.app !== null)?.app ?? repo}</Text>
+        </Text>
         <Text>
           {summary(prs).map((part, i) => (
             <Text color={part.tone}>{i > 0 ? ' · ' : ''}{part.text}</Text>
@@ -203,7 +207,7 @@ export const register: Register = (on, options) => {
         })}
         <Box marginTop={1} flexDirection="row" gap={1}>
           <Button key="refresh" label="Refresh" hotkey="r" onPress={() => void refresh($)} />
-          <Text dimColor>{isRefreshing ? 'checking…' : `checked ${checkedAt > 0 ? ago(now - checkedAt) : '–'} ago`} · {repo}</Text>
+          <Text dimColor>{isRefreshing ? 'checking…' : `checked ${checkedAt > 0 ? ago(now - checkedAt) : '–'} ago`}</Text>
         </Box>
       </Box>
     )

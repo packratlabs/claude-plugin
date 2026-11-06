@@ -67,6 +67,7 @@ Type `/packrat` to open a pane that lists the repository's recently merged pull 
 each did in production:
 
 ```
+Packrat PR Verifications · colorbook/production
 4 pending · 7 worked
 
 ◷ #570 Send J.Crew and J.Crew Factory visits through CJ
