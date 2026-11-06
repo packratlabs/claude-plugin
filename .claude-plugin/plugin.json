@@ -1,12 +1,32 @@
 {
   "name": "packrat",
-  "version": "0.1.1",
-  "description": "Query your Packrat data, write PR verification follow-ups, and check how deploys are performing in production.",
+  "version": "0.2.0",
+  "description": "Query your Packrat data, write PR verification follow-ups, and see how pull requests did in production in a pane beside the chat.",
   "author": {
     "name": "Packrat Labs",
     "url": "https://packrat.sh"
   },
   "homepage": "https://packrat.sh/docs/claude-code-plugin",
   "repository": "https://github.com/packratlabs/claude-plugin",
-  "license": "MIT"
+  "license": "MIT",
+  "userConfig": {
+    "pulls": {
+      "type": "number",
+      "title": "Pull requests listed",
+      "description": "How many recently merged pull requests /packrat lists",
+      "default": 12
+    },
+    "cli": {
+      "type": "string",
+      "title": "packrat CLI",
+      "description": "The packrat command /packrat runs. Empty uses the plugin's own, which prefers the packrat on your PATH",
+      "default": ""
+    },
+    "site": {
+      "type": "string",
+      "title": "Packrat site",
+      "description": "Where View PR opens a pull request's verification. Empty uses PACKRAT_URL, then https://packrat.sh",
+      "default": ""
+    }
+  }
 }

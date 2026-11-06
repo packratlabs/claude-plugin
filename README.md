@@ -8,6 +8,7 @@ The Packrat plugin for Claude Code gives Claude access to your app's production 
 - Query your traces and logs with SQL to investigate production issues.
 - Schedule a check that the analyst runs at a later time, with the result sent by email.
 - Add a Follow-up section to each pull request, which Packrat uses to verify the deploy.
+- Show how the repository's pull requests did in production, in a pane beside the chat.
 
 ## Prerequisites
 
@@ -59,6 +60,37 @@ When Claude creates a pull request with `gh pr create`, the plugin requires a `#
 in the description. The section states what shows the change worked in production, how to check it,
 and when the result is expected. If the section is missing, the plugin blocks the command and asks
 Claude to add one.
+
+### PR Verifications pane
+
+Type `/packrat` to open a pane that lists the repository's recently merged pull requests and how
+each did in production:
+
+```
+4 pending · 7 worked
+
+◷ #570 Send J.Crew and J.Crew Factory visits through CJ
+  deployed 48m ago
+  ? J.Crew visits go to CJ                                6 Nov
+  · The CJ sync runs without errors                       in 14h 04m
+  [ Ask ] [ View PR ]
+✓ #566 Store black colorways from Quince bag lists
+✗ #564 Read Loft inventory through Scrapfly in one session per run
+```
+
+The mark before each pull request is its verdict: `✓` worked, `✗` did not work, `◐` worked in part,
+`◷` pending and `–` not verified. Select a pull request to list its checks. **Ask** puts a
+`/packrat:ask` prompt in the input for you to send, and **View PR** opens the pull request's page on
+Packrat. A pull request deployed in the last hour opens by itself. The pane reads Packrat every
+minute while it is open, and asks nothing until you type `/packrat`.
+
+The pane needs:
+
+- The [GitHub CLI](https://cli.github.com) (`gh`), signed in to the repository, to list merged pull
+  requests.
+- `packrat` 0.1.2 or later. Run `packrat update` if the pane says the CLI is too old.
+- A Claude Code version that loads plugin modules. The pane is built on Claude Code's plugin module
+  API, which is in early access and can change between releases.
 
 ## Skills
 
