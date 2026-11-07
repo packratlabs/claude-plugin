@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, isLive, orgOf, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, isLive, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -62,8 +62,8 @@ test('the summary adds the verdicts up', async () => {
 })
 
 test('View PR opens the verification page on the site, or GitHub without an org', async () => {
-  const pr = toPr(merged, { app: 'colorbook/production', pull: 564, state: 'pending', deploys: [], checks: [] })
-  const org = orgOf('Signed in to dlite (org_j9m7lj1jp5fg) as derek@dlite.cc.\n')
-  expect(verificationUrl(pr, 'http://localhost:3100/', org)).toBe('http://localhost:3100/orgs/org_j9m7lj1jp5fg/apps/colorbook/production/pulls/564')
-  expect(verificationUrl(pr, 'https://packrat.sh', null)).toBe('https://github.com/a/b/pull/564')
+  const pr = toPr(merged, { app: 'colorbook/production', org: 'org_j9m7lj1jp5fg', pull: 564, state: 'pending', deploys: [], checks: [] })
+  expect(verificationUrl(pr, 'http://localhost:3100/')).toBe('http://localhost:3100/orgs/org_j9m7lj1jp5fg/apps/colorbook/production/pulls/564')
+  const older = toPr(merged, { app: 'colorbook/production', pull: 564, state: 'pending', deploys: [], checks: [] })
+  expect(verificationUrl(older, 'https://packrat.sh')).toBe('https://github.com/a/b/pull/564')
 })

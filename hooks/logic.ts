@@ -17,11 +17,11 @@ export type Check = {
 
 export type Deploy = { deployed_at: string; verdict: string | null }
 
-export type PullAnswer = { app: string; pull: number; state: string | null; deploys: Deploy[]; checks: Check[] }
+export type PullAnswer = { app: string; org?: string; pull: number; state: string | null; deploys: Deploy[]; checks: Check[] }
 
 export type Merged = { number: number; title: string; url: string; mergedAt: string }
 
-export type Pr = Merged & { app: string | null; state: string | null; deployedAt: number | null; checks: Check[] }
+export type Pr = Merged & { app: string | null; org: string | null; state: string | null; deployedAt: number | null; checks: Check[] }
 
 export type Verdict = 'worked' | 'didnt' | 'partly' | 'pending' | 'none'
 export type Tone = 'success' | 'error' | 'warning' | 'suggestion' | 'subtle'
@@ -90,7 +90,7 @@ export function summary(prs: readonly Pr[]) {
 
 export function toPr(merged: Merged, answer: PullAnswer | null): Pr {
   const first = answer?.deploys.map(d => Date.parse(d.deployed_at)).filter(t => !Number.isNaN(t)).sort((a, b) => a - b)[0]
-  return { ...merged, app: answer?.app ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [] }
+  return { ...merged, app: answer?.app ?? null, org: answer?.org ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [] }
 }
 
 // A check with no title is named by its first sentence, after the pull request and commit it opens with.
@@ -165,14 +165,10 @@ export function fit(text: string, width: number) {
   return text.length > width ? text.slice(0, width - 1) + '…' : text.padEnd(width)
 }
 
-// The org's public id from `packrat auth status`: "Signed in to dlite (org_j9m7lj1jp5fg) as …".
-export function orgOf(authStatus: string) {
-  return /\((org_[a-z0-9]+)\)/.exec(authStatus)?.[1] ?? null
-}
-
 // The pull request's page on the site, or GitHub's when the org or app is not known.
-export function verificationUrl(pr: Pr, site: string, org: string | null) {
+export function verificationUrl(pr: Pr, site: string) {
   const [service, env] = pr.app?.split('/') ?? []
+  const org = pr.org
   if (org === null || service === undefined || env === undefined) return pr.url
   const app = `${encodeURIComponent(service)}/${encodeURIComponent(env)}`
   return `${site.replace(/\/+$/, '')}/orgs/${org}/apps/${app}/pulls/${pr.number}`
