@@ -80,10 +80,15 @@ Packrat PR Verifications · colorbook/production
 ```
 
 The mark before each pull request is its verdict: `✓` worked, `✗` did not work, `◐` worked in part,
-`◷` pending and `–` not verified. Select a pull request to list its checks. **Ask** puts a
+`◷` pending and `–` not verified. Select a pull request to list its checks, each marked `✓` passed,
+`✗` failed, `⊘` excused (it failed, and the analyst says why the deploy still worked), `?` inconclusive,
+`·` due, or `•` closed without a result. **Ask** puts a
 `/packrat:ask` prompt in the input for you to send, and **View PR** opens the pull request's page on
 Packrat. A pull request deployed in the last hour opens by itself. The pane reads Packrat every
 minute while it is open, and asks nothing until you type `/packrat`.
+
+The pane shows only its latest error. Every error it meets is also kept, newest last, in
+`~/.config/packrat/pane.log`.
 
 The pane needs:
 

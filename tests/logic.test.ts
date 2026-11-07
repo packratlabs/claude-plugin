@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, counts, isLive, orgOf, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, isLive, orgOf, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -23,7 +23,28 @@ test('counts each check by its result, and an open one with none as pending', as
     check({ result: '' }), check({ result: 'inconclusive' }),
     check({ result: null, closed_at: '2026-11-05T00:00:00Z' }),
   ])
-  expect(c).toEqual({ failed: 1, pending: 1, passed: 2, inconclusive: 1 })
+  expect(c).toEqual({ failed: 1, excused: 0, pending: 1, passed: 2, inconclusive: 1 })
+})
+
+test('a failed check with the reason the deploy still worked is excused, not failed', async () => {
+  const excused = check({ result: 'failed', accepted: 'Slow reads halved, and the run finished under 5 h.', closed_at: '2026-11-05T13:00:00Z' })
+  expect(checkGlyph(excused)).toEqual({ glyph: '⊘', tone: 'subtle' })
+  expect(checkGlyph(check({ result: 'failed', accepted: '' }))).toEqual({ glyph: '✗', tone: 'error' })
+  expect(counts([excused, check({ result: 'failed' })])).toEqual({ failed: 1, excused: 1, pending: 0, passed: 0, inconclusive: 0 })
+})
+
+test('a check closed with no result is shown as closed on the day it closed, not as due', async () => {
+  const closed = check({ result: '', closed_at: '2026-11-04T01:35:52Z', due_at: '2026-11-03T00:00:00Z' })
+  expect(checkGlyph(closed)).toEqual({ glyph: '•', tone: 'subtle' })
+  expect(checkWhen(closed, now)).toBe('4 Nov')
+  expect(checkWhen(check({ result: 'passed', closed_at: '2026-11-05T00:00:00Z', runs: [{ at: '2026-11-04T09:00:00Z', result: 'passed', evidence: 'e' }] }), now)).toBe('4 Nov')
+  expect(checkWhen(check({ due_at: '2026-11-06T11:00:00Z' }), now)).toBe('next look')
+})
+
+test('a check with no title is named by its first sentence, less the pull request and commit', async () => {
+  expect(checkName(check({ title: '', what: 'PR #559 (1f443d6a): the 3 Nov 01:00 UTC category scrape read all 5 Quince bag lists (satchels). More.' })))
+    .toBe('The 3 Nov 01:00 UTC category scrape read all 5 Quince bag lists (satchels)')
+  expect(checkName(check({ title: null, what: '' }))).toBe('chk_1')
 })
 
 test('a pending pull request is live for its first hour after the deploy', async () => {
