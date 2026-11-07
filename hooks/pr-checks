@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Declares the checks of a pull request Claude opens with gh pr create. Before the command runs, the branch's
+# draft must exist and the API must accept it (a dry run); after it, the draft is sent under the new number.
+# A repository Packrat does not verify, and a Packrat that cannot be reached, never stop a pull request.
+set -uo pipefail
+
+input=$(cat)
+event=$(jq -r '.hook_event_name // ""' <<<"$input")
+command=$(jq -r '.tool_input.command // ""' <<<"$input")
+cwd=$(jq -r '.cwd // ""' <<<"$input")
+
+# gh pr create as a command of its own, not words inside a commit message or a heredoc.
+nl=$'\n'
+create="(^|[;&|(${nl}])[[:space:]]*gh[[:space:]]+pr[[:space:]]+create([[:space:]]|\$)"
+web='[[:space:]](--web|-w)([[:space:]]|$)'
+[[ "$command" =~ $create ]] || exit 0
+[[ "$command" =~ $web ]] && exit 0
+
+[ -n "$cwd" ] && cd "$cwd" 2>/dev/null
+common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
+branch=$(git branch --show-current 2>/dev/null)
+[ -n "$branch" ] || exit 0
+draft="$common/packrat/checks/$branch.json"
+packrat="${PACKRAT_HOOK_CLI:-${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/bin/packrat}"
+
+say() { jq -n --arg event "$1" --arg text "$2" '{hookSpecificOutput: {hookEventName: $event, additionalContext: $text}}'; exit 0; }
+deny() {
+  jq -n --arg reason "$1" '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+  exit 0
+}
+
+shape='a JSON list of checks, [{"title": "what it verifies", "what": "what must be true in production, and the span, attribute, log line or SQL that shows it", "after": "1h"}], where after is how long after the deploy it can first pass (10m to 30d), or {"none": "why production cannot show this change"}'
+
+if [ "$event" = "PreToolUse" ]; then
+  if [ -f "$draft" ]; then
+    answer=$("$packrat" pr checks set --dry-run --file "$draft" 2>&1); code=$?
+  else
+    answer=$(echo '{"none": "probe"}' | "$packrat" pr checks set --dry-run --file - 2>&1); code=$?
+  fi
+  case $code in
+    0) ;;
+    3) exit 0 ;;
+    *)
+      # A draft the API refused says what to fix; anything else (signed out, offline) lets the pull request through.
+      [[ "$answer" == *"answered 422"* ]] && deny "Packrat refused the checks in $draft: ${answer#*answered 422: }
+Fix the draft (see the packrat:checks skill), then run gh pr create again."
+      exit 0 ;;
+  esac
+  [ -f "$draft" ] && exit 0
+  deny "Packrat verifies this repository, and this branch has no checks drafted. Before opening the pull request, write $draft: $shape. Draft them from the whole diff (see the packrat:checks skill). If production records nothing that would show a result, add that instrumentation first, such as an OpenTelemetry span attribute, and commit it. Create the directory if needed, then run gh pr create again. The plugin declares the checks once the pull request has a number."
+fi
+
+[ "$event" = "PostToolUse" ] && [ -f "$draft" ] || exit 0
+url=$(jq -r '.tool_response | tostring' <<<"$input" | grep -oE 'https://github\.com/[^/[:space:]"]+/[^/[:space:]"]+/pull/[0-9]+' | tail -1)
+[ -n "$url" ] || exit 0
+if answer=$("$packrat" pr checks set "$url" --file "$draft" 2>&1); then
+  say PostToolUse "Packrat: $answer"
+fi
+say PostToolUse "Packrat did not declare the checks for $url: $answer
+Declare them with: packrat pr checks set $url --file $draft"

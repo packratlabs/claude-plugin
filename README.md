@@ -7,7 +7,7 @@ The Packrat plugin for Claude Code gives Claude access to your app's production 
 - Read Packrat links, such as a report linked from a Packrat email.
 - Query your traces and logs with SQL to investigate production issues.
 - Schedule a check that the analyst runs at a later time, with the result sent by email.
-- Add a Follow-up section to each pull request, which Packrat uses to verify the deploy.
+- Declare the checks Packrat runs to verify each pull request after it deploys.
 - Show how the repository's pull requests did in production, in a pane beside the chat.
 
 ## Prerequisites
@@ -54,12 +54,21 @@ directly. For example:
 | "Why is checkout slow?" | Queries your traces and logs with `packrat sql`. |
 | "Check that the cleanup job ran on Monday." | Schedules a check with `packrat check add`. The analyst emails the result. |
 
-### Follow-up sections
+### Pull request checks
 
-When Claude creates a pull request with `gh pr create`, the plugin requires a `## Follow-up` section
-in the description. The section states what shows the change worked in production, how to check it,
-and when the result is expected. If the section is missing, the plugin blocks the command and asks
-Claude to add one.
+Before Claude opens a pull request with `gh pr create`, the plugin requires a checks draft for the
+branch, in `.git/packrat/checks/<branch>.json`. Each check states what shows the change worked in
+production, the data that shows it, and how long after the deploy the result is expected. The
+`packrat:checks` skill tells Claude how to write one.
+
+- **Before `gh pr create`**, the plugin validates the draft with `packrat pr checks set --dry-run`. If
+  there's no draft, or Packrat refuses it, the plugin blocks the command and tells Claude what to fix.
+- **After `gh pr create`**, the plugin reads the new pull request's URL and declares the draft with
+  `packrat pr checks set`. The checks wait until a deploy ships the pull request, then the analyst runs
+  them.
+
+A repository Packrat doesn't verify, or a Packrat the CLI can't reach, never blocks a pull request.
+Declaring checks needs `packrat` 0.1.4 or later.
 
 ### PR Verifications pane
 
@@ -103,4 +112,4 @@ The pane needs:
 | Skill | Description |
 | --- | --- |
 | `packrat:ask` | The entry point to Packrat. Answers questions about production through the CLI: pull requests, Packrat links, SQL queries and checks. |
-| `packrat:follow-up` | Writes the Follow-up section of a pull request. |
+| `packrat:checks` | Drafts the checks Packrat runs after a pull request deploys. |
