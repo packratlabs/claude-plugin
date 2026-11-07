@@ -147,7 +147,8 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e)
-    // A throw here leaves the pane blank, so it is drawn as an error and logged instead.
+    // A throw here leaves the pane blank, so it is drawn as an error and logged instead. A tree the engine refuses
+    // (a `<>`, which is a Box, inside a Text) blanks it too, after this returns: the pane test mounts it to catch that.
     try {
       const width = Math.max(40, e.props.bodyColumns)
       const now = await $.clock.now()
@@ -207,7 +208,7 @@ export const register: Register = (on, options) => {
                       <Box marginLeft={2}>
                         <Text dimColor>
                           deployed {ago(now - pr.deployedAt)} ago
-                          {isLive(pr, now) && !hasRun && (firstLook > now ? <> · first look in {countdown(firstLook - now)}</> : ' · first look running')}
+                          {isLive(pr, now) && !hasRun && (firstLook > now ? ` · first look in ${countdown(firstLook - now)}` : ' · first look running')}
                         </Text>
                       </Box>
                     )}
