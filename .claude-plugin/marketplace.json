@@ -6,7 +6,7 @@
     {
       "name": "packrat",
       "source": "./",
-      "description": "Query your Packrat data, write PR verification follow-ups, and check how deploys are performing in production."
+      "description": "Query your Packrat data, declare the checks that verify each pull request, and check how deploys are performing in production."
     }
   ]
 }
