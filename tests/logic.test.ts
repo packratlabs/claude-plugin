@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, isSettled, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -73,4 +73,16 @@ test('View PR opens the verification page on the site, or GitHub without an org'
   expect(verificationUrl(pr, 'http://localhost:3100/')).toBe('http://localhost:3100/orgs/org_j9m7lj1jp5fg/apps/colorbook/production/pulls/564')
   const older = toPr(merged, { app: 'colorbook/production', pull: 564, state: 'pending', deploys: [], checks: [] })
   expect(verificationUrl(older, 'https://packrat.sh')).toBe('https://github.com/a/b/pull/564')
+})
+
+test('an answer is settled once it has a verdict and no check open, or a day after a merge no deploy shipped', async () => {
+  const deploys = [{ deployed_at: '2026-11-05T00:00:00Z', verdict: 'confirmed' }]
+  const answer = (state: string | null, checks: Check[] = [], shipped = deploys) => ({ app: 'colorbook/production', pull: 564, state, deploys: shipped, checks })
+  expect(isSettled(merged, answer('confirmed', [check({ result: 'passed', closed_at: '2026-11-05T13:00:00Z' })]), now)).toBe(true)
+  expect(isSettled(merged, answer('refuted'), now)).toBe(true)
+  expect(isSettled(merged, answer('pending'), now)).toBe(false)
+  expect(isSettled(merged, answer('partly', [check({})]), now)).toBe(false)
+  expect(isSettled(merged, answer(null, [], []), now)).toBe(true)
+  expect(isSettled({ ...merged, mergedAt: '2026-11-06T11:00:00Z' }, answer(null, [], []), now)).toBe(false)
+  expect(isSettled(merged, null, now)).toBe(false)
 })

@@ -17,7 +17,18 @@ web='[[:space:]](--web|-w)([[:space:]]|$)'
 [[ "$command" =~ $web ]] && exit 0
 
 [ -n "$cwd" ] && cd "$cwd" 2>/dev/null
+# gh runs where the last cd before it leaves the shell, which is another checkout when Claude opens a pull request
+# in a repository beside the session's.
+before=$(sed -E 's/gh[[:space:]]+pr[[:space:]]+create.*//' <<<"$command" | tr '\n' ';')
+moved=$(grep -oE "(^|[;&|(])[[:space:]]*cd[[:space:]]+[^;&|)[:space:]]+" <<<"$before" | tail -1 | sed -E "s/^[;&|([:space:]]*cd[[:space:]]+//; s/^[\"']//; s/[\"']\$//")
+[ -n "$moved" ] && { cd "${moved/#\~/$HOME}" 2>/dev/null || exit 0; }
 common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
+# A pull request opened in another repository with -R has no branch or draft here.
+named=$(grep -oE "(^|[[:space:]])(-R|--repo)[=[:space:]]+[^[:space:]]+" <<<"$command" | tail -1 | sed -E 's/^[[:space:]]*(-R|--repo)[=[:space:]]+//; s/\.git$//' | tr '[:upper:]' '[:lower:]')
+if [ -n "$named" ]; then
+  origin=$(git remote get-url origin 2>/dev/null | tr '[:upper:]' '[:lower:]' | sed -E 's/\.git$//')
+  [[ "$origin" == *"/$named" || "$origin" == *":$named" ]] || exit 0
+fi
 branch=$(git branch --show-current 2>/dev/null)
 [ -n "$branch" ] || exit 0
 draft="$common/packrat/checks/$branch.json"

@@ -6,6 +6,7 @@ import {
   type Pr,
   type PullAnswer,
   FIRST_LOOK_MS,
+  SETTLED_MS,
   VERDICTS,
   WHEN_WIDTH,
   ago,
@@ -16,6 +17,7 @@ import {
   deployed,
   fit,
   isLive,
+  isSettled,
   summary,
   toPr,
   verdict,
@@ -43,6 +45,8 @@ let checkedAt = 0
 let isRefreshing = false
 let lastError: string | null = null
 const expanded = new Set<number>()
+// Answers that will not change soon, so each poll asks Packrat only about the pull requests still in play.
+const settled = new Map<number, { answer: PullAnswer; at: number }>()
 let isStarted = false
 let logPath: string | null = null
 let lastLogged = ''
@@ -100,7 +104,17 @@ async function refresh($: Api) {
     }
     lastError = null
     const merged = JSON.parse(listed.stdout) as Merged[]
-    const answers = await Promise.all(merged.map(pr => readPull($, pr.number)))
+    const now = await $.clock.now()
+    const answers = await Promise.all(
+      merged.map(async pr => {
+        const kept = settled.get(pr.number)
+        if (kept && now - kept.at < SETTLED_MS) return kept.answer
+        const answer = await readPull($, pr.number)
+        if (answer && isSettled(pr, answer, now)) settled.set(pr.number, { answer, at: now })
+        else settled.delete(pr.number)
+        return answer
+      }),
+    )
     prs = deployed(merged.map((pr, i) => toPr(pr, answers[i] ?? null)))
     checkedAt = await $.clock.now()
   } catch (error) {
