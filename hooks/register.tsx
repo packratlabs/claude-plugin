@@ -11,9 +11,8 @@ import {
   ago,
   checkGlyph,
   checkName,
+  checkWhen,
   countdown,
-  day,
-  due,
   fit,
   isLive,
   summary,
@@ -46,6 +45,27 @@ let isRefreshing = false
 let lastError: string | null = null
 const expanded = new Set<number>()
 let isStarted = false
+let logPath: string | null = null
+let lastLogged = ''
+
+// The pane shows only its latest error, and Claude Code keeps none of them, so each one also goes to a file.
+async function log($: Api, line: string) {
+  if (line === lastLogged) return
+  lastLogged = line
+  try {
+    logPath ??= `${(await $.env.get('HOME')) ?? '.'}/.config/packrat/pane.log`
+    const before = await $.fs.read(logPath).catch(() => '')
+    const stamp = new Date(await $.clock.now()).toISOString()
+    await $.fs.write(logPath, [...before.split('\n').filter(Boolean).slice(-499), `${stamp} ${repo ?? '-'} ${line}`].join('\n') + '\n')
+  } catch {
+    // A log that cannot be written must not take the pane down with it.
+  }
+}
+
+function fail($: Api, message: string) {
+  lastError = message
+  void log($, message)
+}
 
 
 async function detectRepo($: Api) {
@@ -57,12 +77,12 @@ async function detectRepo($: Api) {
 async function readPull($: Api, number: number): Promise<PullAnswer | null> {
   const shown = await $.process.run([cli, 'pr', 'show', String(number), '--json'], { cwd: root, timeoutMs: 30_000 })
   if (shown.exitCode !== 0) {
-    lastError = `${cli} pr show ${number}: ${shown.stderr.trim().split('\n')[0] ?? `exit ${shown.exitCode}`}`
+    fail($, `${cli} pr show ${number}: ${shown.stderr.trim().split('\n')[0] ?? `exit ${shown.exitCode}`}`)
     return null
   }
   const answer = JSON.parse(shown.stdout) as PullAnswer
   // packrat before 0.1.2 printed no state, so every pull request would read as not verified.
-  if (!('state' in answer)) lastError = 'This packrat CLI is too old to show verdicts. Run packrat update.'
+  if (!('state' in answer)) fail($, 'This packrat CLI is too old to show verdicts. Run packrat update.')
   return answer
 }
 
@@ -76,7 +96,7 @@ async function refresh($: Api) {
       { cwd: root, timeoutMs: 30_000 },
     )
     if (listed.exitCode !== 0) {
-      lastError = `gh pr list: ${listed.stderr.trim().split('\n')[0] ?? `exit ${listed.exitCode}`}`
+      fail($, `gh pr list: ${listed.stderr.trim().split('\n')[0] ?? `exit ${listed.exitCode}`}`)
       return
     }
     lastError = null
@@ -85,7 +105,7 @@ async function refresh($: Api) {
     prs = merged.map((pr, i) => toPr(pr, answers[i] ?? null))
     checkedAt = await $.clock.now()
   } catch (error) {
-    lastError = `refresh failed: ${String(error)}`
+    fail($, `refresh failed: ${String(error)}`)
   } finally {
     isRefreshing = false
     $.ui.invalidate('ui.render')
@@ -120,96 +140,101 @@ export const register: Register = (on, options) => {
 
       return { text: `Opened PR Verifications for ${repo}.` }
     } catch (error) {
+      void log($, `open failed: ${String(error)}`)
       return { text: `Packrat could not open PR Verifications: ${String(error)}` }
     }
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e)
-    const width = Math.max(40, e.props.bodyColumns)
-    const now = await $.clock.now()
+    // A throw here leaves the pane blank, so it is drawn as an error and logged instead.
+    try {
+      const width = Math.max(40, e.props.bodyColumns)
+      const now = await $.clock.now()
 
-    if (repo === null) return <Text dimColor>Not in a GitHub repository gh can see.</Text>
+      if (repo === null) return <Text dimColor>Not in a GitHub repository gh can see.</Text>
 
-    const toggle = (n: number) => {
-      if (expanded.has(n)) expanded.delete(n)
-      else expanded.add(n)
-      $.ui.invalidate('ui.render')
-    }
-    const ask = (n: number) => void $.prompt.fill({ text: `/packrat:ask how did PR ${n} do`, mode: 'replace' })
-    const openPr = (url: string) => void $.process.run(['open', url], { timeoutMs: 10_000 })
+      const toggle = (n: number) => {
+        if (expanded.has(n)) expanded.delete(n)
+        else expanded.add(n)
+        $.ui.invalidate('ui.render')
+      }
+      const ask = (n: number) => void $.prompt.fill({ text: `/packrat:ask how did PR ${n} do`, mode: 'replace' })
+      const openPr = (url: string) => void $.process.run(['open', url], { timeoutMs: 10_000 })
 
-    const checkLines = (pr: Pr, indent: number) =>
-      pr.checks.map(check => {
-        const mark = checkGlyph(check)
-        const when = check.result === 'passed' || check.result === 'failed' || check.result === 'inconclusive'
-          ? (check.runs?.length ? day(check.runs[check.runs.length - 1]!.at) : '')
-          : due(check, now)
-        return (
-          <Box key={`check-${check.id}`} flexDirection="column" marginLeft={indent}>
-            <Text>
-              <Text color={mark.tone}>{mark.glyph}</Text> {fit(checkName(check), Math.max(10, width - indent - 4 - WHEN_WIDTH))} <Text dimColor>{when}</Text>
-            </Text>
-          </Box>
-        )
-      })
-
-    return (
-      <Box flexDirection="column">
-        <Text wrap="truncate-end">
-          <Text bold>Packrat PR Verifications</Text>
-          <Text dimColor> · {prs.find(pr => pr.app !== null)?.app ?? repo}</Text>
-        </Text>
-        <Text>
-          {summary(prs).map((part, i) => (
-            <Text color={part.tone}>{i > 0 ? ' · ' : ''}{part.text}</Text>
-          ))}
-          {prs.length === 0 && <Text dimColor>{isRefreshing ? 'Reading Packrat…' : 'No merged pull requests yet.'}</Text>}
-        </Text>
-        {lastError !== null && <Text color="error" wrap="truncate-end">{lastError}</Text>}
-
-        <Box marginTop={1} />
-        {prs.map(pr => {
-          const v = VERDICTS[verdict(pr.state)]
-          // A pull request in its first hour opens by itself; pressing it flips that, as for any other.
-          const isOpen = expanded.has(pr.number) !== isLive(pr, now)
-          const firstLook = (pr.deployedAt ?? now) + FIRST_LOOK_MS
-          const hasRun = pr.checks.some(check => (check.runs?.length ?? 0) > 0)
+      const checkLines = (pr: Pr, indent: number) =>
+        pr.checks.map(check => {
+          const mark = checkGlyph(check)
+          const when = checkWhen(check, now)
           return (
-            <Box key={`row-${pr.number}`} flexDirection="column">
-              <Button key={`pr-${pr.number}`} plain onPress={() => toggle(pr.number)}>
-                <Text color={v.tone}>{v.glyph}</Text> #{pr.number} {fit(pr.title, width - 8).trimEnd()}
-              </Button>
-              {isOpen && (
-                <Box flexDirection="column">
-                  {pr.deployedAt !== null && (
-                    <Box marginLeft={2}>
-                      <Text dimColor>
-                        deployed {ago(now - pr.deployedAt)} ago
-                        {isLive(pr, now) && !hasRun && (firstLook > now ? <> · first look in {countdown(firstLook - now)}</> : ' · first look running')}
-                      </Text>
-                    </Box>
-                  )}
-                  {pr.checks.length === 0 && (
-                    <Box marginLeft={2}>
-                      <Text dimColor>No checks. {NO_CHECKS[pr.state ?? ''] ?? 'Not judged yet.'}</Text>
-                    </Box>
-                  )}
-                  {checkLines(pr, 2)}
-                  <Box flexDirection="row" gap={1} marginLeft={2}>
-                    <Button key={`ask-${pr.number}`} label="Ask" variant="primary" onPress={() => ask(pr.number)} />
-                    <Button key={`open-${pr.number}`} label="View PR" onPress={() => openPr(verificationUrl(pr, site, org))} />
-                  </Box>
-                </Box>
-              )}
+            <Box key={`check-${check.id}`} flexDirection="column" marginLeft={indent}>
+              <Text>
+                <Text color={mark.tone}>{mark.glyph}</Text> {fit(checkName(check), Math.max(10, width - indent - 4 - WHEN_WIDTH))} <Text dimColor>{when}</Text>
+              </Text>
             </Box>
           )
-        })}
-        <Box marginTop={1} flexDirection="row" gap={1}>
-          <Button key="refresh" label="Refresh" hotkey="r" onPress={() => void refresh($)} />
-          <Text dimColor>{isRefreshing ? 'checking…' : `checked ${checkedAt > 0 ? ago(now - checkedAt) : '–'} ago`}</Text>
+        })
+
+      return (
+        <Box flexDirection="column">
+          <Text wrap="truncate-end">
+            <Text bold>Packrat PR Verifications</Text>
+            <Text dimColor> · {prs.find(pr => pr.app !== null)?.app ?? repo}</Text>
+          </Text>
+          <Text>
+            {summary(prs).map((part, i) => (
+              <Text color={part.tone}>{i > 0 ? ' · ' : ''}{part.text}</Text>
+            ))}
+            {prs.length === 0 && <Text dimColor>{isRefreshing ? 'Reading Packrat…' : 'No merged pull requests yet.'}</Text>}
+          </Text>
+          {lastError !== null && <Text color="error" wrap="truncate-end">{lastError}</Text>}
+
+          <Box marginTop={1} />
+          {prs.map(pr => {
+            const v = VERDICTS[verdict(pr.state)]
+            // A pull request in its first hour opens by itself; pressing it flips that, as for any other.
+            const isOpen = expanded.has(pr.number) !== isLive(pr, now)
+            const firstLook = (pr.deployedAt ?? now) + FIRST_LOOK_MS
+            const hasRun = pr.checks.some(check => (check.runs?.length ?? 0) > 0)
+            return (
+              <Box key={`row-${pr.number}`} flexDirection="column">
+                <Button key={`pr-${pr.number}`} plain onPress={() => toggle(pr.number)}>
+                  <Text color={v.tone}>{v.glyph}</Text> #{pr.number} {fit(pr.title, width - 8).trimEnd()}
+                </Button>
+                {isOpen && (
+                  <Box flexDirection="column">
+                    {pr.deployedAt !== null && (
+                      <Box marginLeft={2}>
+                        <Text dimColor>
+                          deployed {ago(now - pr.deployedAt)} ago
+                          {isLive(pr, now) && !hasRun && (firstLook > now ? <> · first look in {countdown(firstLook - now)}</> : ' · first look running')}
+                        </Text>
+                      </Box>
+                    )}
+                    {pr.checks.length === 0 && (
+                      <Box marginLeft={2}>
+                        <Text dimColor>No checks. {NO_CHECKS[pr.state ?? ''] ?? 'Not judged yet.'}</Text>
+                      </Box>
+                    )}
+                    {checkLines(pr, 2)}
+                    <Box flexDirection="row" gap={1} marginLeft={2}>
+                      <Button key={`ask-${pr.number}`} label="Ask" variant="primary" onPress={() => ask(pr.number)} />
+                      <Button key={`open-${pr.number}`} label="View PR" onPress={() => openPr(verificationUrl(pr, site, org))} />
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+            )
+          })}
+          <Box marginTop={1} flexDirection="row" gap={1}>
+            <Button key="refresh" label="Refresh" hotkey="r" onPress={() => void refresh($)} />
+            <Text dimColor>{isRefreshing ? 'checking…' : `checked ${checkedAt > 0 ? ago(now - checkedAt) : '–'} ago`}</Text>
+          </Box>
         </Box>
-      </Box>
-    )
+      )
+    } catch (error) {
+      void log($, `render failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}`)
+      return <Text color="error">Packrat could not draw this pane: {String(error)}. See ~/.config/packrat/pane.log.</Text>
+    }
   })
 }

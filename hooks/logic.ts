@@ -9,6 +9,8 @@ export type Check = {
   due_at: string
   closed_at: string | null
   result: string | null
+  // Why a failed check did not stop the deploy working; the site shows that check as excused.
+  accepted?: string | null
   source: string | null
   runs: Run[] | null
 }
@@ -57,13 +59,19 @@ export function isLive(pr: Pr, now: number) {
   return pr.deployedAt !== null && now - pr.deployedAt < LIVE_MS && verdict(pr.state) === 'pending'
 }
 
-export type Counts = { failed: number; pending: number; passed: number; inconclusive: number }
+export type Counts = { failed: number; excused: number; pending: number; passed: number; inconclusive: number }
+
+export const isExcused = (check: Check) => check.result === 'failed' && !!check.accepted
+
+// Closed before checks had results, or withdrawn by a developer.
+const isClosedUnjudged = (check: Check) => check.closed_at !== null && (check.result === null || check.result === '')
 
 export function counts(checks: readonly Check[]): Counts {
-  const out = { failed: 0, pending: 0, passed: 0, inconclusive: 0 }
+  const out = { failed: 0, excused: 0, pending: 0, passed: 0, inconclusive: 0 }
   for (const check of checks) {
-    if (check.closed_at !== null && (check.result === null || check.result === '')) continue
-    if (check.result === 'failed') out.failed += 1
+    if (isClosedUnjudged(check)) continue
+    if (isExcused(check)) out.excused += 1
+    else if (check.result === 'failed') out.failed += 1
     else if (check.result === 'passed') out.passed += 1
     else if (check.result === 'inconclusive') out.inconclusive += 1
     else out.pending += 1
@@ -85,11 +93,17 @@ export function toPr(merged: Merged, answer: PullAnswer | null): Pr {
   return { ...merged, app: answer?.app ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [] }
 }
 
+// A check with no title is named by its first sentence, after the pull request and commit it opens with.
 export function checkName(check: Check) {
-  return check.title ?? check.what.split('\n')[0] ?? check.id
+  if (check.title) return check.title
+  const what = check.what.replace(/\s+/g, ' ').trim().replace(/^(?:PR\s*)?#\d+\s*(?:\([0-9a-f]{7,40}\)\s*)?[,;:–—-]?\s*/i, '')
+  const name = (/^.+?(?:[.:](?=\s)|$)/.exec(what)?.[0] ?? '').replace(/[.:]$/, '').trim()
+  return name ? name[0]!.toUpperCase() + name.slice(1) : check.id
 }
 
 export function checkGlyph(check: Check): { glyph: string; tone: Tone } {
+  if (isExcused(check)) return { glyph: '⊘', tone: 'subtle' }
+  if (isClosedUnjudged(check)) return { glyph: '•', tone: 'subtle' }
   switch (check.result) {
     case 'passed':
       return { glyph: '✓', tone: 'success' }
@@ -100,6 +114,13 @@ export function checkGlyph(check: Check): { glyph: string; tone: Tone } {
     default:
       return { glyph: '·', tone: 'subtle' }
   }
+}
+
+// The day a closed check last ran, or when an open one is due.
+export function checkWhen(check: Check, now: number) {
+  if (check.closed_at === null) return due(check, now)
+  const runs = check.runs ?? []
+  return day(runs[runs.length - 1]?.at ?? check.closed_at)
 }
 
 export function lastEvidence(check: Check) {
