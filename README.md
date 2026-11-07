@@ -94,7 +94,7 @@ The mark before each pull request is its verdict: `✓` worked, `✗` did not wo
 `·` due, or `•` closed without a result. **Ask** puts a
 `/packrat:ask` prompt in the input for you to send, and **View PR** opens the pull request's page on
 Packrat. A merged pull request joins the list once Packrat records the deploy that shipped it,
-usually within five minutes of the release. A pull request deployed in the last hour opens by itself. The pane reads Packrat every
+within seconds of the new version's first request to Packrat, so the pane shows it at its next read. A pull request deployed in the last hour opens by itself. The pane reads Packrat every
 minute while it is open, and asks nothing until you type `/packrat`. A pull request with a verdict and no check
 still open is read again every 15 minutes rather than every minute.
 
