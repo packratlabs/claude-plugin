@@ -72,7 +72,7 @@ Declaring checks needs `packrat` 0.1.4 or later.
 
 ### PR Verifications pane
 
-Type `/packrat` to open a pane that lists the repository's recently merged pull requests and how
+Type `/packrat` to open a pane that lists the repository's recently deployed pull requests and how
 each did in production:
 
 ```
@@ -93,7 +93,8 @@ The mark before each pull request is its verdict: `✓` worked, `✗` did not wo
 `✗` failed, `⊘` excused (it failed, and the analyst says why the deploy still worked), `?` inconclusive,
 `·` due, or `•` closed without a result. **Ask** puts a
 `/packrat:ask` prompt in the input for you to send, and **View PR** opens the pull request's page on
-Packrat. A pull request deployed in the last hour opens by itself. The pane reads Packrat every
+Packrat. A merged pull request joins the list once Packrat records the deploy that shipped it,
+usually within five minutes of the release. A pull request deployed in the last hour opens by itself. The pane reads Packrat every
 minute while it is open, and asks nothing until you type `/packrat`.
 
 The pane shows only its latest error. Every error it meets is also kept, newest last, in
