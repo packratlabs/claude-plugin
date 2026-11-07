@@ -55,6 +55,19 @@ export const LIVE_MS = 60 * 60 * 1000
 // Analyst::DeployJob asks for a look ten minutes after a deploy goes live.
 export const FIRST_LOOK_MS = 10 * 60 * 1000
 
+// How long the pane keeps a settled answer before asking again. Not forever: a later deploy can fix a pull request
+// that did not work, or ship it again.
+export const SETTLED_MS = 15 * 60 * 1000
+const UNSHIPPED_MS = 24 * 60 * 60 * 1000
+
+// An answer that will not change within the minute: a verdict with no check open, or a pull request merged a day
+// ago that no deploy has shipped.
+export function isSettled(merged: Merged, answer: PullAnswer | null, now: number) {
+  if (answer === null) return false
+  if (answer.deploys.length === 0) return now - Date.parse(merged.mergedAt) > UNSHIPPED_MS
+  return verdict(answer.state) !== 'pending' && answer.checks.every(check => check.closed_at !== null)
+}
+
 export function isLive(pr: Pr, now: number) {
   return pr.deployedAt !== null && now - pr.deployedAt < LIVE_MS && verdict(pr.state) === 'pending'
 }

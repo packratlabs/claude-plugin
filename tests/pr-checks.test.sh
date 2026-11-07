@@ -56,4 +56,18 @@ setup
 touch "$dir/unwatched"
 expect_empty "a repository Packrat does not verify is never stopped" "$(run PreToolUse "$open --fill")"
 
+setup
+other=$(cd "$(mktemp -d)" && pwd -P); git -C "$other" init -q -b pane-fix
+mkdir -p "$other/.git/packrat/checks"; echo '{"none": "docs"}' > "$other/.git/packrat/checks/pane-fix.json"
+expect_empty "a cd into another checkout reads that checkout's draft" "$(run PreToolUse "cd $other && git push -u origin pane-fix && $open --fill")"
+expect "and asks Packrat about it" "$(cat "$dir/asked")" "--file $other/.git/packrat/checks/pane-fix.json"
+out=$(run PreToolUse "cd $other && cd $dir && $open --fill")
+expect "the last cd before gh is the one that counts" "$out" "$draft"
+
+setup
+git -C "$dir" remote add origin https://github.com/acme/shop.git
+expect_empty "-R naming another repository is let through" "$(run PreToolUse "$open -R acme/elsewhere --fill")"
+expect_empty "without asking Packrat" "$(cat "$dir/asked" 2>/dev/null)"
+expect "-R naming this repository still wants a draft" "$(run PreToolUse "$open --repo Acme/Shop --fill")" '"permissionDecision": "deny"'
+
 [ "$failures" -eq 0 ] && echo "all passed" || { echo "$failures failed"; exit 1; }
