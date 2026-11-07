@@ -13,6 +13,7 @@ import {
   checkName,
   checkWhen,
   countdown,
+  deployed,
   fit,
   isLive,
   summary,
@@ -100,7 +101,7 @@ async function refresh($: Api) {
     lastError = null
     const merged = JSON.parse(listed.stdout) as Merged[]
     const answers = await Promise.all(merged.map(pr => readPull($, pr.number)))
-    prs = merged.map((pr, i) => toPr(pr, answers[i] ?? null))
+    prs = deployed(merged.map((pr, i) => toPr(pr, answers[i] ?? null)))
     checkedAt = await $.clock.now()
   } catch (error) {
     fail($, `refresh failed: ${String(error)}`)
@@ -182,7 +183,7 @@ export const register: Register = (on, options) => {
             {summary(prs).map((part, i) => (
               <Text color={part.tone}>{i > 0 ? ' · ' : ''}{part.text}</Text>
             ))}
-            {prs.length === 0 && <Text dimColor>{isRefreshing ? 'Reading Packrat…' : 'No merged pull requests yet.'}</Text>}
+            {prs.length === 0 && <Text dimColor>{isRefreshing ? 'Reading Packrat…' : 'No deployed pull requests yet.'}</Text>}
           </Text>
           {lastError !== null && <Text color="error" wrap="truncate-end">{lastError}</Text>}
 

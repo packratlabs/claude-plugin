@@ -93,6 +93,9 @@ export function toPr(merged: Merged, answer: PullAnswer | null): Pr {
   return { ...merged, app: answer?.app ?? null, org: answer?.org ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [] }
 }
 
+// Packrat has a page for a pull request only once a recorded deploy shipped it; until then it has nothing to verify.
+export const deployed = (prs: readonly Pr[]) => prs.filter(pr => pr.deployedAt !== null)
+
 // A check with no title is named by its first sentence, after the pull request and commit it opens with.
 export function checkName(check: Check) {
   if (check.title) return check.title

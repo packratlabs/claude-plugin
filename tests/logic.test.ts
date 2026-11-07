@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, isLive, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -59,6 +59,13 @@ test('the summary adds the verdicts up', async () => {
   const at = (state: string | null, deployed: string) => toPr(merged, { app: 'colorbook/production', pull: 1, state, deploys: [{ deployed_at: deployed, verdict: null }], checks: [] })
   const parts = summary([at('pending', '2026-11-06T11:50:00Z'), at('refuted', '2026-11-01T00:00:00Z'), at('confirmed', '2026-11-01T00:00:00Z'), at('confirmed', '2026-11-02T00:00:00Z')])
   expect(parts.map(p => p.text)).toEqual(["1 didn't work", '1 pending', '2 worked'])
+})
+
+test('the pane lists only pull requests a deploy has shipped', async () => {
+  const shipped = toPr(merged, { app: 'colorbook/production', pull: 564, state: 'pending', deploys: [{ deployed_at: '2026-11-06T11:30:00Z', verdict: null }], checks: [] })
+  const waiting = toPr({ ...merged, number: 565 }, { app: 'colorbook/production', pull: 565, state: null, deploys: [], checks: [] })
+  const unknown = toPr({ ...merged, number: 566 }, null)
+  expect(deployed([shipped, waiting, unknown]).map(pr => pr.number)).toEqual([564])
 })
 
 test('View PR opens the verification page on the site, or GitHub without an org', async () => {
