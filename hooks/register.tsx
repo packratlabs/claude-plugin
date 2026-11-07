@@ -17,7 +17,6 @@ import {
   isLive,
   summary,
   toPr,
-  orgOf,
   verdict,
   verificationUrl,
 } from './logic'
@@ -38,7 +37,6 @@ let repo: string | null = null
 let cli = 'packrat'
 let limit = 12
 let site = 'https://packrat.sh'
-let org: string | null = null
 let prs: Pr[] = []
 let checkedAt = 0
 let isRefreshing = false
@@ -129,8 +127,6 @@ export const register: Register = (on, options) => {
         site = String(options.site ?? '').trim() || (await $.env.get('PACKRAT_URL')) || 'https://packrat.sh'
         await detectRepo($)
         if (repo === null) return { text: 'Packrat: this directory is not a GitHub repository that gh can see.' }
-        const auth = await $.process.run([cli, 'auth', 'status'], { timeoutMs: 20_000 })
-        org = auth.exitCode === 0 ? orgOf(auth.stdout) : null
         $.clock.every(POLL_MS, () => void refresh($))
         $.clock.every(1_000, () => $.ui.invalidate('ui.render'))
         isStarted = true
@@ -220,7 +216,7 @@ export const register: Register = (on, options) => {
                     {checkLines(pr, 2)}
                     <Box flexDirection="row" gap={1} marginLeft={2}>
                       <Button key={`ask-${pr.number}`} label="Ask" variant="primary" onPress={() => ask(pr.number)} />
-                      <Button key={`open-${pr.number}`} label="View PR" onPress={() => openPr(verificationUrl(pr, site, org))} />
+                      <Button key={`open-${pr.number}`} label="View PR" onPress={() => openPr(verificationUrl(pr, site))} />
                     </Box>
                   </Box>
                 )}
