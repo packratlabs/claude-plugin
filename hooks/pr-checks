@@ -30,7 +30,7 @@ if [ -n "$named" ]; then
   [[ "$origin" == *"/$named" || "$origin" == *":$named" ]] || exit 0
 fi
 branch=$(git branch --show-current 2>/dev/null)
-[ -n "$branch" ] || exit 0
+[ -n "$branch" ] || [ "$event" = "PostToolUse" ] || exit 0
 draft="$common/packrat/checks/$branch.json"
 packrat="${PACKRAT_HOOK_CLI:-${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/bin/packrat}"
 
@@ -61,9 +61,18 @@ Fix the draft (see the packrat:checks skill), then run gh pr create again."
   deny "Packrat verifies this repository, and this branch has no checks drafted. Before opening the pull request, write $draft: $shape. Draft them from the whole diff (see the packrat:checks skill). If production records nothing that would show a result, add that instrumentation first, such as an OpenTelemetry span attribute, and commit it. Create the directory if needed, then run gh pr create again. The plugin declares the checks once the pull request has a number."
 fi
 
-[ "$event" = "PostToolUse" ] && [ -f "$draft" ] || exit 0
+[ "$event" = "PostToolUse" ] || exit 0
 url=$(jq -r '.tool_response | tostring' <<<"$input" | grep -oE 'https://github\.com/[^/[:space:]"]+/[^/[:space:]"]+/pull/[0-9]+' | tail -1)
 [ -n "$url" ] || exit 0
+# The same command may have left the branch (gh pr merge, git checkout main) before this runs, so the pull request
+# names the branch whose draft it declares.
+head=$("${PACKRAT_HOOK_GH:-gh}" pr view "$url" --json headRefName -q .headRefName 2>/dev/null)
+[ -n "$head" ] && draft="$common/packrat/checks/$head.json"
+if [ ! -f "$draft" ]; then
+  # Said only for a repository Packrat verifies, and never when Packrat cannot be asked.
+  echo '{"none": "probe"}' | "$packrat" pr checks set --dry-run --file - >/dev/null 2>&1 || exit 0
+  say PostToolUse "Packrat: no checks were drafted for ${head:-$branch}, so none were declared for $url. Draft them (see the packrat:checks skill) and run: packrat pr checks set $url --file $draft"
+fi
 if answer=$("$packrat" pr checks set "$url" --file "$draft" 2>&1); then
   say PostToolUse "Packrat: $answer"
 fi

@@ -19,9 +19,10 @@ file=\$(sed -n 's/.*--file \([^ ]*\).*/\1/p' <<<"\$*"); if [ "\$file" = - ]; the
 echo "Declared for \$*"
 FAKE
   chmod +x "$cli"
+  gh="$dir/fake-gh"; printf '#!/usr/bin/env bash\n[ -f "%s/head" ] && cat "%s/head" || exit 1\n' "$dir" "$dir" > "$gh"; chmod +x "$gh"
 }
 draft_is() { mkdir -p "$(dirname "$draft")"; printf '%s' "$1" > "$draft"; }
-run() { jq -n --arg e "$1" --arg c "$2" --arg d "$dir" --arg out "${3:-}" '{hook_event_name: $e, cwd: $d, tool_input: {command: $c}, tool_response: {stdout: $out}}' | PACKRAT_HOOK_CLI="$cli" "$hook"; }
+run() { jq -n --arg e "$1" --arg c "$2" --arg d "$dir" --arg out "${3:-}" '{hook_event_name: $e, cwd: $d, tool_input: {command: $c}, tool_response: {stdout: $out}}' | PACKRAT_HOOK_CLI="$cli" PACKRAT_HOOK_GH="$gh" "$hook"; }
 expect() { if [[ "$2" == *"$3"* ]]; then echo "ok    $1"; else echo "FAIL  $1: wanted \"$3\" in: $2"; failures=$((failures + 1)); fi; }
 expect_empty() { if [ -z "$2" ]; then echo "ok    $1"; else echo "FAIL  $1: wanted nothing, got: $2"; failures=$((failures + 1)); fi; }
 
@@ -69,5 +70,17 @@ git -C "$dir" remote add origin https://github.com/acme/shop.git
 expect_empty "-R naming another repository is let through" "$(run PreToolUse "$open -R acme/elsewhere --fill")"
 expect_empty "without asking Packrat" "$(cat "$dir/asked" 2>/dev/null)"
 expect "-R naming this repository still wants a draft" "$(run PreToolUse "$open --repo Acme/Shop --fill")" '"permissionDecision": "deny"'
+
+setup
+draft_is '[{"title": "Faster", "what": "p95", "after": "1h"}]'
+echo cart-cache > "$dir/head"; git -C "$dir" checkout -q -b main
+out=$(run PostToolUse "$open --fill && gh pr merge --merge && git checkout main" 'https://github.com/acme/shop/pull/483')
+expect "a command that left the branch still declares that branch's draft" "$(cat "$dir/asked")" "pr checks set https://github.com/acme/shop/pull/483 --file $draft"
+
+setup
+out=$(run PostToolUse "$open --fill" 'https://github.com/acme/shop/pull/484')
+expect "a pull request opened with no draft says none were declared" "$out" "no checks were drafted for cart-cache"
+touch "$dir/unwatched"
+expect_empty "but not in a repository Packrat does not verify" "$(run PostToolUse "$open --fill" 'https://github.com/acme/shop/pull/484')"
 
 [ "$failures" -eq 0 ] && echo "all passed" || { echo "$failures failed"; exit 1; }
