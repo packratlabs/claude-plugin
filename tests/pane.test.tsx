@@ -36,3 +36,23 @@ test('a pull request deployed minutes ago draws, with the time to its first look
   })
   expect(JSON.stringify(await pane.drawn())).toContain('first look in 6m 00s')
 })
+
+test('a pane open across a reload starts again by itself, with no /packrat', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(shown))
+    throw new Error(`unexpected ${argv}`)
+  })
+
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 60, placement: 'dock' } as never,
+  })
+  await clock.settle()
+  expect(JSON.stringify(await pane.drawn())).toContain('first look in 6m 00s')
+})

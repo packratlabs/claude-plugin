@@ -48,6 +48,9 @@ const expanded = new Set<number>()
 // Answers that will not change soon, so each poll asks Packrat only about the pull requests still in play.
 const settled = new Map<number, { answer: PullAnswer; at: number }>()
 let isStarted = false
+let isStarting = false
+let pluginOptions: Parameters<Register>[1] = {}
+let checkedRepo = false
 let logPath: string | null = null
 let lastLogged = ''
 
@@ -75,6 +78,7 @@ async function detectRepo($: Api) {
   root = await $.session.root()
   const found = await $.process.run(['gh', 'repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd: root, timeoutMs: 20_000 })
   repo = found.exitCode === 0 && found.stdout.trim() !== '' ? found.stdout.trim() : null
+  checkedRepo = true
 }
 
 async function readPull($: Api, number: number): Promise<PullAnswer | null> {
@@ -125,7 +129,28 @@ async function refresh($: Api) {
   }
 }
 
+// Run by /packrat, and by an open pane that draws after a reload (/reload-plugins or an update), which starts the
+// module's state over and stops its clocks.
+async function start($: Api) {
+  if (isStarted || isStarting) return
+  isStarting = true
+  try {
+    cli = String(pluginOptions.cli ?? '').trim() || `${$.plugin.root}/bin/packrat`
+    site = String(pluginOptions.site ?? '').trim() || (await $.env.get('PACKRAT_URL')) || 'https://packrat.sh'
+    await detectRepo($)
+    if (repo === null) return
+    $.clock.every(POLL_MS, () => void refresh($))
+    $.clock.every(1_000, () => $.ui.invalidate('ui.render'))
+    isStarted = true
+    void refresh($)
+  } finally {
+    isStarting = false
+    $.ui.invalidate('ui.render')
+  }
+}
+
 export const register: Register = (on, options) => {
+  pluginOptions = options
   limit = Math.min(30, Math.max(3, Number(options.pulls ?? 12)))
 
   // Nothing runs until /packrat: a session that never opens the pane asks GitHub and Packrat nothing.
@@ -137,15 +162,8 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'packrat' }, async $ => {
     try {
-      if (!isStarted) {
-        cli = String(options.cli ?? '').trim() || `${$.plugin.root}/bin/packrat`
-        site = String(options.site ?? '').trim() || (await $.env.get('PACKRAT_URL')) || 'https://packrat.sh'
-        await detectRepo($)
-        if (repo === null) return { text: 'Packrat: this directory is not a GitHub repository that gh can see.' }
-        $.clock.every(POLL_MS, () => void refresh($))
-        $.clock.every(1_000, () => $.ui.invalidate('ui.render'))
-        isStarted = true
-      }
+      await start($)
+      if (repo === null) return { text: 'Packrat: this directory is not a GitHub repository that gh can see.' }
       await $.ui.open({ id: PANE, title: 'Packrat PR Verifications', focus: true })
       void refresh($)
 
@@ -164,7 +182,8 @@ export const register: Register = (on, options) => {
       const width = Math.max(40, e.props.bodyColumns)
       const now = await $.clock.now()
 
-      if (repo === null) return <Text dimColor>Not in a GitHub repository gh can see.</Text>
+      if (!checkedRepo) void start($)
+      if (repo === null) return <Text dimColor>{checkedRepo ? 'Not in a GitHub repository gh can see.' : 'Reading Packrat…'}</Text>
 
       const toggle = (n: number) => {
         if (expanded.has(n)) expanded.delete(n)
