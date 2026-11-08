@@ -28,6 +28,21 @@ The plugin runs the [Packrat CLI](https://github.com/packratlabs/packrat-cli). I
 on your `PATH`, the plugin uses that installation. Otherwise, it downloads the CLI on first use and
 verifies it against the release checksums.
 
+### Keep it up to date
+
+Claude Code updates a plugin from a marketplace outside Anthropic only when auto-update is on. Run
+`/plugin`, open **Marketplaces**, choose `packrat` and select **Enable auto-update**. The `packrat-rails`
+generator turns it on for a repository in `.claude/settings.json`.
+
+While auto-update is off, the plugin says at the start of a session when a newer version is out. It
+asks GitHub at most once a day. Update it with:
+
+```
+claude plugin update packrat@packrat
+```
+
+Then run `/reload-plugins` in Claude Code.
+
 ## Authenticate
 
 Sign in from Claude Code:
