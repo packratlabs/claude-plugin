@@ -17,11 +17,11 @@ export type Check = {
 
 export type Deploy = { deployed_at: string; verdict: string | null }
 
-export type PullAnswer = { app: string; org?: string; pull: number; state: string | null; deploys: Deploy[]; checks: Check[] }
+export type PullAnswer = { app: string; org?: string; pull: number; state: string | null; deploys: Deploy[]; checks: Check[]; none?: string | null }
 
 export type Merged = { number: number; title: string; url: string; mergedAt: string }
 
-export type Pr = Merged & { app: string | null; org: string | null; state: string | null; deployedAt: number | null; checks: Check[] }
+export type Pr = Merged & { app: string | null; org: string | null; state: string | null; deployedAt: number | null; checks: Check[]; none: string | null }
 
 export type Verdict = 'worked' | 'didnt' | 'partly' | 'pending' | 'none'
 export type Tone = 'success' | 'error' | 'warning' | 'suggestion' | 'subtle'
@@ -103,7 +103,7 @@ export function summary(prs: readonly Pr[]) {
 
 export function toPr(merged: Merged, answer: PullAnswer | null): Pr {
   const first = answer?.deploys.map(d => Date.parse(d.deployed_at)).filter(t => !Number.isNaN(t)).sort((a, b) => a - b)[0]
-  return { ...merged, app: answer?.app ?? null, org: answer?.org ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [] }
+  return { ...merged, app: answer?.app ?? null, org: answer?.org ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [], none: answer?.none ?? null }
 }
 
 // Packrat has a page for a pull request only once a recorded deploy shipped it; until then it has nothing to verify.
@@ -188,4 +188,9 @@ export function verificationUrl(pr: Pr, site: string) {
   if (org === null || service === undefined || env === undefined) return pr.url
   const app = `${encodeURIComponent(service)}/${encodeURIComponent(env)}`
   return `${site.replace(/\/+$/, '')}/orgs/${org}/apps/${app}/pulls/${pr.number}`
+}
+
+// What the pane says of a pull request with no checks: why its author declared none, or what its state says.
+export function noChecks(pr: Pr, byState: Record<string, string>) {
+  return pr.none ? `No checks: ${pr.none}` : `No checks. ${byState[pr.state ?? ''] ?? 'Not judged yet.'}`
 }

@@ -16,6 +16,7 @@ import {
   countdown,
   deployed,
   fit,
+  noChecks,
   isLive,
   isSettled,
   summary,
@@ -244,7 +245,7 @@ export const register: Register = (on, options) => {
                     )}
                     {pr.checks.length === 0 && (
                       <Box marginLeft={2}>
-                        <Text dimColor>No checks. {NO_CHECKS[pr.state ?? ''] ?? 'Not judged yet.'}</Text>
+                        <Text dimColor>{noChecks(pr, NO_CHECKS)}</Text>
                       </Box>
                     )}
                     {checkLines(pr, 2)}

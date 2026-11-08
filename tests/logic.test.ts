@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, isSettled, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, isSettled, noChecks, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -85,4 +85,11 @@ test('an answer is settled once it has a verdict and no check open, or a day aft
   expect(isSettled(merged, answer(null, [], []), now)).toBe(true)
   expect(isSettled({ ...merged, mergedAt: '2026-11-06T11:00:00Z' }, answer(null, [], []), now)).toBe(false)
   expect(isSettled(merged, null, now)).toBe(false)
+})
+
+test('a pull request with no checks says why its author declared none, or what its state says', async () => {
+  const base = { app: 'colorbook/production', pull: 211, deploys: [], checks: [] }
+  expect(noChecks(toPr(merged, { ...base, state: 'pending', none: 'Docs and pricing copy only.' }), {})).toBe('No checks: Docs and pricing copy only.')
+  expect(noChecks(toPr(merged, { ...base, state: 'pending' }), {})).toBe('No checks. Not judged yet.')
+  expect(noChecks(toPr(merged, { ...base, state: 'not_observable' }), { not_observable: 'Nothing can show it.' })).toBe('No checks. Nothing can show it.')
 })
