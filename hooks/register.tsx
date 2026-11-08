@@ -2,6 +2,7 @@ import type { Hook, Register } from 'claude-code'
 
 import {
   type Check,
+  type IssueList,
   type Merged,
   type Pr,
   type PullAnswer,
@@ -19,6 +20,11 @@ import {
   noChecks,
   isLive,
   isSettled,
+  issueDetails,
+  issueSummary,
+  issueTally,
+  issueUrl,
+  severityMark,
   summary,
   toPr,
   verdict,
@@ -29,6 +35,7 @@ type Api = Parameters<Hook<'session.start'>>[0]
 
 const PANE = 'packrat'
 const POLL_MS = 60_000
+const ISSUES_LISTED = 25
 const NO_CHECKS: Record<string, string> = {
   '': 'No deploy recorded yet.',
   not_observable: 'Nothing in production can show whether it worked.',
@@ -46,6 +53,13 @@ let checkedAt = 0
 let isRefreshing = false
 let lastError: string | null = null
 const expanded = new Set<number>()
+let tab: 'pulls' | 'issues' = 'pulls'
+let issues: IssueList | null = null
+let issuesCheckedAt = 0
+let isRefreshingIssues = false
+let issuesError: string | null = null
+let pulling: Promise<void> | null = null
+const openIssues = new Set<string>()
 // Answers that will not change soon, so each poll asks Packrat only about the pull requests still in play.
 const settled = new Map<number, { answer: PullAnswer; at: number }>()
 let isStarted = false
@@ -94,7 +108,14 @@ async function readPull($: Api, number: number): Promise<PullAnswer | null> {
   return answer
 }
 
-async function refresh($: Api) {
+function refresh($: Api) {
+  pulling ??= refreshPulls($).finally(() => {
+    pulling = null
+  })
+  return pulling
+}
+
+async function refreshPulls($: Api) {
   if (repo === null || isRefreshing) return
   isRefreshing = true
   $.ui.invalidate('ui.render')
@@ -130,6 +151,46 @@ async function refresh($: Api) {
   }
 }
 
+// The app comes from the pull requests' answers, because the Packrat that answers may be older than ?repo= on /issues.
+const knownApp = () => prs.find(pr => pr.app !== null)?.app ?? null
+
+async function refreshIssues($: Api) {
+  if (repo === null || isRefreshingIssues) return
+  isRefreshingIssues = true
+  $.ui.invalidate('ui.render')
+  try {
+    if (knownApp() === null) await (pulling ?? refresh($))
+    const [service, env] = knownApp()?.split('/') ?? []
+    const argv = [cli, 'issues', '--json', '--limit', String(ISSUES_LISTED)]
+    if (service) argv.push('--app', service)
+    if (env) argv.push('--environment', env)
+    const listed = await $.process.run(argv, { cwd: root, timeoutMs: 30_000 })
+    if (listed.exitCode !== 0) {
+      const said = listed.stderr.trim().split('\n')[0] ?? `exit ${listed.exitCode}`
+      issuesError = said.includes('is not a packrat command') ? 'This packrat CLI is too old to list issues. Run packrat update.' : `${cli} issues: ${said}`
+      void log($, issuesError)
+      return
+    }
+    issues = JSON.parse(listed.stdout) as IssueList
+    issuesError = null
+    issuesCheckedAt = await $.clock.now()
+  } catch (error) {
+    issuesError = `issues refresh failed: ${String(error)}`
+    void log($, issuesError)
+  } finally {
+    isRefreshingIssues = false
+    $.ui.invalidate('ui.render')
+  }
+}
+
+const refreshShown = ($: Api) => (tab === 'issues' ? refreshIssues($) : refresh($))
+
+async function show($: Api, next: typeof tab) {
+  tab = next
+  $.ui.invalidate('ui.render')
+  if (next === 'issues' && (issues === null || (await $.clock.now()) - issuesCheckedAt >= POLL_MS)) void refreshIssues($)
+}
+
 // Run by /packrat, and by an open pane that draws after a reload (/reload-plugins or an update), which starts the
 // module's state over and stops its clocks.
 async function start($: Api) {
@@ -140,7 +201,7 @@ async function start($: Api) {
     site = String(pluginOptions.site ?? '').trim() || (await $.env.get('PACKRAT_URL')) || 'https://packrat.sh'
     await detectRepo($)
     if (repo === null) return
-    $.clock.every(POLL_MS, () => void refresh($))
+    $.clock.every(POLL_MS, () => void refreshShown($))
     $.clock.every(1_000, () => $.ui.invalidate('ui.render'))
     isStarted = true
     void refresh($)
@@ -156,19 +217,21 @@ export const register: Register = (on, options) => {
 
   // Nothing runs until /packrat: a session that never opens the pane asks GitHub and Packrat nothing.
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'packrat', description: "Show how this repository's pull requests did in production" })
+    await $.command.register({ name: 'packrat', description: "Show how this repository's pull requests did in production, and its issues", argumentHint: '[issues]' })
 
     return next(e)
   })
 
-  on('command.run', { command: 'packrat' }, async $ => {
+  on('command.run', { command: 'packrat' }, async ($, e) => {
     try {
       await start($)
       if (repo === null) return { text: 'Packrat: this directory is not a GitHub repository that gh can see.' }
-      await $.ui.open({ id: PANE, title: 'Packrat PR Verifications', focus: true })
-      void refresh($)
+      const next = /^\s*issues?\b/i.test(e.args) ? 'issues' : 'pulls'
+      await $.ui.open({ id: PANE, title: 'Packrat', focus: true })
+      await show($, next)
+      if (next === 'pulls') void refresh($)
 
-      return { text: `Opened PR Verifications for ${repo}.` }
+      return { text: `Opened ${next === 'issues' ? 'Issues' : 'PR Verifications'} for ${repo}.` }
     } catch (error) {
       void log($, `open failed: ${String(error)}`)
       return { text: `Packrat could not open PR Verifications: ${String(error)}` }
@@ -207,12 +270,8 @@ export const register: Register = (on, options) => {
           )
         })
 
-      return (
+      const pullsBody = (
         <Box flexDirection="column">
-          <Text wrap="truncate-end">
-            <Text bold>Packrat PR Verifications</Text>
-            <Text dimColor> · {prs.find(pr => pr.app !== null)?.app ?? repo}</Text>
-          </Text>
           <Text>
             {summary(prs).map((part, i) => (
               <Text color={part.tone}>{i > 0 ? ' · ' : ''}{part.text}</Text>
@@ -258,9 +317,75 @@ export const register: Register = (on, options) => {
               </Box>
             )
           })}
+        </Box>
+      )
+
+      const toggleIssue = (id: string) => {
+        if (openIssues.has(id)) openIssues.delete(id)
+        else openIssues.add(id)
+        $.ui.invalidate('ui.render')
+      }
+      const askIssue = (id: string) => void $.prompt.fill({ text: `/packrat:ask what is going on with ${id}`, mode: 'replace' })
+      const listed = issues?.issues ?? []
+      const env = knownApp()?.split('/')[1] ?? 'production'
+
+      const issuesBody = (
+        <Box flexDirection="column">
+          <Text>
+            {issueSummary(listed).map((part, i) => (
+              <Text color={part.tone}>{i > 0 ? ' · ' : ''}{part.text}</Text>
+            ))}
+            {issues !== null && listed.length === 0 && <Text dimColor>No unresolved issues.</Text>}
+            {issues === null && <Text dimColor>{issuesError === null ? 'Reading Packrat…' : ''}</Text>}
+          </Text>
+          {issuesError !== null && <Text color="error" wrap="truncate-end">{issuesError}</Text>}
+
+          <Box marginTop={1} />
+          {listed.map(issue => {
+            const mark = severityMark(issue)
+            const isAi = issue.kind === 'detected'
+            const tally = issueTally(issue)
+            const titleWidth = Math.max(10, width - tally.length - (isAi ? 3 : 0) - 6)
+            const url = issues && issueUrl(issue, { app: issues.app, org: issues.org || (prs.find(pr => pr.org !== null)?.org ?? undefined) }, env, site)
+            return (
+              <Box key={`issue-row-${issue.id}`} flexDirection="column">
+                <Button key={`issue-${issue.id}`} plain onPress={() => toggleIssue(issue.id)}>
+                  <Text color={mark.tone}>{mark.glyph}</Text> {isAi && <Text color="suggestion">AI </Text>}
+                  {fit(issue.title.replace(/\s+/g, ' '), titleWidth)} <Text dimColor>{tally}</Text>
+                </Button>
+                {openIssues.has(issue.id) && (
+                  <Box flexDirection="column" marginLeft={2}>
+                    <Text dimColor>{issue.id}</Text>
+                    {issueDetails(issue).map((line, i) => (
+                      <Text key={`issue-${issue.id}-line-${i}`} dimColor={i > 0}>{line}</Text>
+                    ))}
+                    <Box flexDirection="row" gap={1}>
+                      <Button key={`ask-issue-${issue.id}`} label="Ask" variant="primary" onPress={() => askIssue(issue.id)} />
+                      {url && <Button key={`open-issue-${issue.id}`} label="View issue" onPress={() => openPr(url)} />}
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+            )
+          })}
+        </Box>
+      )
+
+      const isBusy = tab === 'issues' ? isRefreshingIssues : isRefreshing
+      const shownAt = tab === 'issues' ? issuesCheckedAt : checkedAt
+      const issueCount = issues === null ? '' : ` (${listed.length}${listed.length >= ISSUES_LISTED ? '+' : ''})`
+
+      return (
+        <Box flexDirection="column">
+          <Box flexDirection="row" gap={2}>
+            <Button key="tab-pulls" plain hotkey="1" label="PR Verifications" dimColor={tab !== 'pulls'} onPress={() => void show($, 'pulls')} />
+            <Button key="tab-issues" plain hotkey="2" label={`Issues${issueCount}`} dimColor={tab !== 'issues'} onPress={() => void show($, 'issues')} />
+            <Text dimColor wrap="truncate-end">{knownApp() ?? repo}</Text>
+          </Box>
+          {tab === 'issues' ? issuesBody : pullsBody}
           <Box marginTop={1} flexDirection="row" gap={1}>
-            <Button key="refresh" label="Refresh" hotkey="r" onPress={() => void refresh($)} />
-            <Text dimColor>{isRefreshing ? 'checking…' : `checked ${checkedAt > 0 ? ago(now - checkedAt) : '–'} ago`}</Text>
+            <Button key="refresh" label="Refresh" hotkey="r" onPress={() => void refreshShown($)} />
+            <Text dimColor>{isBusy ? 'checking…' : `checked ${shownAt > 0 ? ago(now - shownAt) : '–'} ago`}</Text>
           </Box>
         </Box>
       )

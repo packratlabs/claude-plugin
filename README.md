@@ -113,6 +113,28 @@ within seconds of the new version's first request to Packrat, so the pane shows 
 minute while it is open, and asks nothing until you type `/packrat`. A pull request with a verdict and no check
 still open is read again every 15 minutes rather than every minute.
 
+Press `2`, or type `/packrat issues`, for the **Issues** tab: the app's unresolved issues, error issues
+and AI-detected ones (marked `AI`), in the order of its Issues page on Packrat:
+
+```
+1: PR Verifications  2: Issues (6)  shop/production
+1 critical · 2 high · 3 unrated
+
+▲ AI Gift card carts fail to pay                      new · 41 ev · 9 users
+▲ ActiveRecord::RangeError: PG::NumericValueOutOf…   regressed · 6 ev · 2 users
+  SHOP-12
+  Orders over $21M fail to save.
+  OrdersController#create
+  regressed · reaches people · 2 users · high
+  [ Ask ] [ View issue ]
+· NoMethodError: undefined method 'total' for nil     3 ev · 1 user
+```
+
+The mark is the severity the analyst's daily summary gave: red `▲` critical, yellow `▲` high, `·` unrated
+and `▽` low. Select an issue for its id, its summary, where it happened and why it ranks where it does; **Ask**
+puts a `/packrat:ask` prompt in the input and **View issue** opens it on Packrat. The pane reads only the
+tab you are looking at, and press `1` to go back to PR Verifications.
+
 The pane shows only its latest error. Every error it meets is also kept, newest last, in
 `~/.config/packrat/pane.log`.
 
@@ -120,7 +142,8 @@ The pane needs:
 
 - The [GitHub CLI](https://cli.github.com) (`gh`), signed in to the repository, to list merged pull
   requests.
-- `packrat` 0.1.2 or later. Run `packrat update` if the pane says the CLI is too old.
+- `packrat` 0.1.2 or later, and 0.1.5 or later for the Issues tab. Run `packrat update` if the pane says the
+  CLI is too old.
 - A Claude Code version that loads plugin modules. The pane is built on Claude Code's plugin module
   API, which is in early access and can change between releases.
 

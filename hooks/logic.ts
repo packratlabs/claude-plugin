@@ -194,3 +194,71 @@ export function verificationUrl(pr: Pr, site: string) {
 export function noChecks(pr: Pr, byState: Record<string, string>) {
   return pr.none ? `No checks: ${pr.none}` : `No checks. ${byState[pr.state ?? ''] ?? 'Not judged yet.'}`
 }
+
+// One row of `packrat issues --json`: an error issue, or one the analyst raised (`kind` `detected`).
+export type Issue = {
+  id: string
+  kind: string
+  title: string
+  culprit: string | null
+  status: string
+  substatus: string | null
+  severity: string | null
+  summary: string | null
+  events: number
+  users: number
+  last_seen: string | null
+  environment?: string
+  state?: string
+  normal?: boolean
+  errors?: string[]
+  pull?: number | null
+  reasons?: string[]
+}
+
+export type IssueList = { app: string; org?: string; period: string; issues: Issue[] }
+
+export const SEVERITIES: Record<string, { glyph: string; tone: Tone; label: string }> = {
+  critical: { glyph: '▲', tone: 'error', label: 'critical' },
+  high: { glyph: '▲', tone: 'warning', label: 'high' },
+  '': { glyph: '·', tone: 'subtle', label: 'unrated' },
+  low: { glyph: '▽', tone: 'subtle', label: 'low' },
+}
+
+export const severityMark = (issue: Issue) => SEVERITIES[issue.severity ?? ''] ?? SEVERITIES['']!
+
+export function issueSummary(issues: readonly Issue[]) {
+  const parts: { text: string; tone: Tone }[] = []
+  for (const key of ['critical', 'high', 'low', '']) {
+    const n = issues.filter(issue => (issue.severity ?? '') === key).length
+    if (n > 0) parts.push({ text: `${n} ${SEVERITIES[key]!.label}`, tone: SEVERITIES[key]!.tone })
+  }
+  return parts
+}
+
+// What the row says on its right: the counts, and the substatus when it is news.
+export function issueTally(issue: Issue) {
+  const tag = issue.substatus === 'new' || issue.substatus === 'regressed' || issue.substatus === 'escalating' ? `${issue.substatus} · ` : ''
+  const users = issue.users > 0 ? ` · ${issue.users} ${issue.users === 1 ? 'user' : 'users'}` : ''
+  return `${tag}${issue.events} ev${users}`
+}
+
+// The lines under an open issue: what the analyst wrote, where it happened, and why it ranks where it does.
+export function issueDetails(issue: Issue) {
+  const lines: string[] = []
+  const said = issue.kind === 'detected' ? issue.state || issue.summary : issue.summary
+  if (said) lines.push(said)
+  if (issue.culprit) lines.push(issue.culprit)
+  if (issue.errors?.length) lines.push(`explains ${issue.errors.join(', ')}`)
+  if (issue.pull) lines.push(`opened for #${issue.pull}`)
+  if (issue.reasons?.length) lines.push(issue.reasons.join(' · '))
+  return lines
+}
+
+// An error issue is one service's across every environment; its page is one environment's.
+export function issueUrl(issue: Issue, list: { app: string; org?: string }, env: string, site: string) {
+  const service = list.app.split('/')[0]
+  if (!list.org || !service) return null
+  const app = `${encodeURIComponent(service)}/${encodeURIComponent(issue.environment || env)}`
+  return `${site.replace(/\/+$/, '')}/orgs/${list.org}/apps/${app}/issues/${encodeURIComponent(issue.id)}`
+}
