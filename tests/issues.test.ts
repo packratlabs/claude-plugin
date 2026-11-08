@@ -9,7 +9,7 @@ const issue = (over: Partial<Issue>): Issue => ({
 
 test('the summary counts issues by severity, worst first', () => {
   const parts = issueSummary([issue({ severity: 'high' }), issue({}), issue({ severity: 'critical' }), issue({ severity: 'high' })])
-  expect(parts.map(part => part.text)).toEqual(['1 critical', '2 high', '1 unrated'])
+  expect(parts.map(part => part.text)).toEqual(['▲ 1 critical', '▲ 2 high', '· 1 unrated'])
 })
 
 test('an unrated issue has the unrated mark', () => {

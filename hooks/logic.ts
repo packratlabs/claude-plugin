@@ -109,7 +109,7 @@ export function summary(prs: readonly Pr[]) {
   const parts: { text: string; tone: Tone }[] = []
   for (const v of ['didnt', 'partly', 'pending', 'worked'] as const) {
     const n = prs.filter(pr => verdict(pr.state) === v).length
-    if (n > 0) parts.push({ text: `${n} ${VERDICTS[v].label}`, tone: VERDICTS[v].tone })
+    if (n > 0) parts.push({ text: `${VERDICTS[v].glyph} ${n} ${VERDICTS[v].label}`, tone: VERDICTS[v].tone })
   }
   return parts
 }
@@ -244,7 +244,7 @@ export function issueSummary(issues: readonly Issue[]) {
   const parts: { text: string; tone: Tone }[] = []
   for (const key of ['critical', 'high', 'low', '']) {
     const n = issues.filter(issue => (issue.severity ?? '') === key).length
-    if (n > 0) parts.push({ text: `${n} ${SEVERITIES[key]!.label}`, tone: SEVERITIES[key]!.tone })
+    if (n > 0) parts.push({ text: `${SEVERITIES[key]!.glyph} ${n} ${SEVERITIES[key]!.label}`, tone: SEVERITIES[key]!.tone })
   }
   return parts
 }

@@ -293,7 +293,7 @@ export const register: Register = (on, options) => {
         <Box flexDirection="column">
           <Text>
             {summary(prs).map((part, i) => (
-              <Text color={part.tone}>{i > 0 ? ' · ' : ''}{part.text}</Text>
+              <Text color={part.tone}>{i > 0 ? '  ' : ''}{part.text}</Text>
             ))}
             {prs.length === 0 && <Text dimColor>{isRefreshing ? 'Reading Packrat…' : 'No deployed pull requests yet.'}</Text>}
           </Text>
@@ -352,7 +352,7 @@ export const register: Register = (on, options) => {
         <Box flexDirection="column">
           <Text>
             {issueSummary(listed).map((part, i) => (
-              <Text color={part.tone}>{i > 0 ? ' · ' : ''}{part.text}</Text>
+              <Text color={part.tone}>{i > 0 ? '  ' : ''}{part.text}</Text>
             ))}
             {issues !== null && listed.length === 0 && <Text dimColor>No unresolved issues.</Text>}
             {issues === null && <Text dimColor>{issuesError === null ? 'Reading Packrat…' : ''}</Text>}
@@ -391,13 +391,12 @@ export const register: Register = (on, options) => {
       )
 
       const isBusy = tab === 'issues' ? isRefreshingIssues : isRefreshing
-      const issueCount = issues === null ? '' : ` (${listed.length}${listed.length >= ISSUES_LISTED ? '+' : ''})`
 
       return (
         <Box flexDirection="column">
           <Box flexDirection="row" gap={2}>
-            <Button key="tab-pulls" plain hotkey="1" label="PR Verifications" dimColor={tab !== 'pulls'} onPress={() => void show($, 'pulls')} />
-            <Button key="tab-issues" plain hotkey="2" label={`Issues${issueCount}`} dimColor={tab !== 'issues'} onPress={() => void show($, 'issues')} />
+            <Button key="tab-pulls" plain dimColor={tab !== 'pulls'} onPress={() => void show($, 'pulls')}><Text bold={tab === 'pulls'}>{tab === 'pulls' ? '▸ ' : '  '}PR Verifications</Text></Button>
+            <Button key="tab-issues" plain dimColor={tab !== 'issues'} onPress={() => void show($, 'issues')}><Text bold={tab === 'issues'}>{tab === 'issues' ? '▸ ' : '  '}Issues</Text></Button>
             <Text dimColor wrap="truncate-end">{knownApp() ?? repo}</Text>
           </Box>
           {tab === 'issues' ? issuesBody : pullsBody}
