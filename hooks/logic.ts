@@ -68,6 +68,19 @@ export function isSettled(merged: Merged, answer: PullAnswer | null, now: number
   return verdict(answer.state) !== 'pending' && answer.checks.every(check => check.closed_at !== null)
 }
 
+// A pending pull request past its first hour changes only when a look runs, about once an hour.
+export const PENDING_MS = 5 * 60 * 1000
+
+// How long the pane keeps an answer before asking Packrat again: not at all in a deploy's first hour, when the first
+// look is minutes away.
+export function rereadAfter(merged: Merged, answer: PullAnswer | null, now: number) {
+  if (answer === null) return 0
+  if (isSettled(merged, answer, now)) return SETTLED_MS
+  const first = answer.deploys.map(d => Date.parse(d.deployed_at)).filter(t => !Number.isNaN(t)).sort((a, b) => a - b)[0]
+  if (first === undefined || now - first < LIVE_MS) return 0
+  return PENDING_MS
+}
+
 export function isLive(pr: Pr, now: number) {
   return pr.deployedAt !== null && now - pr.deployedAt < LIVE_MS && verdict(pr.state) === 'pending'
 }

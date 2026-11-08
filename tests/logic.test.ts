@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, isSettled, noChecks, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, isSettled, noChecks, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -92,4 +92,14 @@ test('a pull request with no checks says why its author declared none, or what i
   expect(noChecks(toPr(merged, { ...base, state: 'pending', none: 'Docs and pricing copy only.' }), {})).toBe('No checks: Docs and pricing copy only.')
   expect(noChecks(toPr(merged, { ...base, state: 'pending' }), {})).toBe('No checks. Not judged yet.')
   expect(noChecks(toPr(merged, { ...base, state: 'not_observable' }), { not_observable: 'Nothing can show it.' })).toBe('No checks. Nothing can show it.')
+})
+
+test('a pending pull request is read every minute in its first hour, then every five minutes', () => {
+  const merged = { number: 1, title: 't', url: 'u', mergedAt: '2026-11-07T10:00:00Z' }
+  const deployedAt = Date.parse('2026-11-07T10:05:00Z')
+  const answer = { app: 'a/production', pull: 1, state: 'pending', deploys: [{ deployed_at: '2026-11-07T10:05:00Z', verdict: null }], checks: [] }
+  expect(rereadAfter(merged, answer, deployedAt + 30 * 60 * 1000)).toBe(0)
+  expect(rereadAfter(merged, answer, deployedAt + 2 * 60 * 60 * 1000)).toBe(5 * 60 * 1000)
+  expect(rereadAfter(merged, { ...answer, state: 'confirmed' }, deployedAt + 2 * 60 * 60 * 1000)).toBe(15 * 60 * 1000)
+  expect(rereadAfter(merged, null, deployedAt)).toBe(0)
 })

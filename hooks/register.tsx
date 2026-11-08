@@ -7,7 +7,6 @@ import {
   type Pr,
   type PullAnswer,
   FIRST_LOOK_MS,
-  SETTLED_MS,
   VERDICTS,
   WHEN_WIDTH,
   ago,
@@ -18,8 +17,8 @@ import {
   deployed,
   fit,
   noChecks,
+  rereadAfter,
   isLive,
-  isSettled,
   issueDetails,
   issueSummary,
   issueTally,
@@ -59,9 +58,10 @@ let issuesCheckedAt = 0
 let isRefreshingIssues = false
 let issuesError: string | null = null
 let pulling: Promise<void> | null = null
+let caughtUpAt = 0
 const openIssues = new Set<string>()
 // Answers that will not change soon, so each poll asks Packrat only about the pull requests still in play.
-const settled = new Map<number, { answer: PullAnswer; at: number }>()
+const kept = new Map<number, { answer: PullAnswer; until: number }>()
 let isStarted = false
 let isStarting = false
 let pluginOptions: Parameters<Register>[1] = {}
@@ -133,11 +133,12 @@ async function refreshPulls($: Api) {
     const now = await $.clock.now()
     const answers = await Promise.all(
       merged.map(async pr => {
-        const kept = settled.get(pr.number)
-        if (kept && now - kept.at < SETTLED_MS) return kept.answer
+        const held = kept.get(pr.number)
+        if (held && now < held.until) return held.answer
         const answer = await readPull($, pr.number)
-        if (answer && isSettled(pr, answer, now)) settled.set(pr.number, { answer, at: now })
-        else settled.delete(pr.number)
+        const wait = rereadAfter(pr, answer, now)
+        if (answer && wait > 0) kept.set(pr.number, { answer, until: now + wait })
+        else kept.delete(pr.number)
         return answer
       }),
     )
@@ -185,6 +186,15 @@ async function refreshIssues($: Api) {
 
 const refreshShown = ($: Api) => (tab === 'issues' ? refreshIssues($) : refresh($))
 
+// A pane behind another tab, or closed, asks Packrat nothing; it reads again when it is drawn.
+async function isShown($: Api) {
+  try {
+    return (await $.ui.panes()).some(pane => pane.id === PANE && pane.isShown)
+  } catch {
+    return true
+  }
+}
+
 async function show($: Api, next: typeof tab) {
   tab = next
   $.ui.invalidate('ui.render')
@@ -201,8 +211,12 @@ async function start($: Api) {
     site = String(pluginOptions.site ?? '').trim() || (await $.env.get('PACKRAT_URL')) || 'https://packrat.sh'
     await detectRepo($)
     if (repo === null) return
-    $.clock.every(POLL_MS, () => void refreshShown($))
-    $.clock.every(1_000, () => $.ui.invalidate('ui.render'))
+    $.clock.every(POLL_MS, async () => {
+      if (await isShown($)) void refreshShown($)
+    })
+    $.clock.every(1_000, async () => {
+      if (await isShown($)) $.ui.invalidate('ui.render')
+    })
     isStarted = true
     void refresh($)
   } finally {
@@ -247,6 +261,11 @@ export const register: Register = (on, options) => {
       const now = await $.clock.now()
 
       if (!checkedRepo) void start($)
+      const shownAt = tab === 'issues' ? issuesCheckedAt : checkedAt
+      if (isStarted && shownAt > 0 && now - shownAt >= POLL_MS && now - caughtUpAt >= POLL_MS) {
+        caughtUpAt = now
+        void refreshShown($)
+      }
       if (repo === null) return <Text dimColor>{checkedRepo ? 'Not in a GitHub repository gh can see.' : 'Reading Packrat…'}</Text>
 
       const toggle = (n: number) => {
@@ -372,7 +391,6 @@ export const register: Register = (on, options) => {
       )
 
       const isBusy = tab === 'issues' ? isRefreshingIssues : isRefreshing
-      const shownAt = tab === 'issues' ? issuesCheckedAt : checkedAt
       const issueCount = issues === null ? '' : ` (${listed.length}${listed.length >= ISSUES_LISTED ? '+' : ''})`
 
       return (
@@ -384,7 +402,10 @@ export const register: Register = (on, options) => {
           </Box>
           {tab === 'issues' ? issuesBody : pullsBody}
           <Box marginTop={1} flexDirection="row" gap={1}>
-            <Button key="refresh" label="Refresh" hotkey="r" onPress={() => void refreshShown($)} />
+            <Button key="refresh" label="Refresh" hotkey="r" onPress={() => {
+              kept.clear()
+              void refreshShown($)
+            }} />
             <Text dimColor>{isBusy ? 'checking…' : `checked ${shownAt > 0 ? ago(now - shownAt) : '–'} ago`}</Text>
           </Box>
         </Box>
