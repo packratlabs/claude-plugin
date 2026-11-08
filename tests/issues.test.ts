@@ -23,9 +23,11 @@ test('the tally names a substatus only when it is news', () => {
   expect(issueTally(issue({ substatus: 'regressed', users: 4 }))).toBe('regressed · 3 ev · 4 users')
 })
 
-test('an AI-detected issue says its state, the errors it explains and the pull request it was opened for', () => {
-  const found = issue({ kind: 'detected', culprit: null, state: 'Gift card carts fail.', errors: ['SHOP-1', 'SHOP-4'], pull: 482, reasons: ['rising'] })
-  expect(issueDetails(found)).toEqual(['Gift card carts fail.', 'explains SHOP-1, SHOP-4', 'opened for #482', 'rising'])
+test('an issue says its one-line summary, and never the analyst\'s notes', () => {
+  const found = issue({ kind: 'detected', culprit: null, summary: 'Gift card carts fail to pay.', state: 'Six of ten looks since the deploy saw it.', errors: ['SHOP-1'], pull: 482, reasons: ['rising'] })
+  expect(issueDetails(found)).toEqual(['Gift card carts fail to pay.'])
+  expect(issueDetails(issue({ kind: 'detected', state: 'Not back.' }))).toEqual([])
+  expect(issueDetails(issue({}))).toEqual([])
 })
 
 test('View issue opens the page of its environment, or nothing without an org', () => {

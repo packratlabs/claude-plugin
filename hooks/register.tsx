@@ -374,9 +374,8 @@ export const register: Register = (on, options) => {
                 </Button>
                 {openIssues.has(issue.id) && (
                   <Box flexDirection="column" marginLeft={2}>
-                    <Text dimColor>{issue.id}</Text>
                     {issueDetails(issue).map((line, i) => (
-                      <Text key={`issue-${issue.id}-line-${i}`} dimColor={i > 0}>{line}</Text>
+                      <Text key={`issue-${issue.id}-line-${i}`}>{line}</Text>
                     ))}
                     <Box flexDirection="row" gap={1}>
                       <Button key={`ask-issue-${issue.id}`} label="Ask" variant="primary" onPress={() => askIssue(issue.id)} />

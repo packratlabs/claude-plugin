@@ -134,7 +134,7 @@ and AI-detected ones (marked `AI`), in the order of its Issues page on Packrat:
 ```
 
 The mark is the severity the analyst's daily summary gave: red `▲` critical, yellow `▲` high, `·` unrated
-and `▽` low. Select an issue for its id, its summary, where it happened and why it ranks where it does; **Ask**
+and `▽` low. Select an issue for its one-line summary; **Ask**
 puts a `/packrat:ask` prompt in the input and **View issue** opens it on Packrat. The pane reads only the
 tab you are looking at; click **PR Verifications** to go back. A `▸` marks the tab you are on.
 

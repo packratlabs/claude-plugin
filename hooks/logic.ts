@@ -258,14 +258,7 @@ export function issueTally(issue: Issue) {
 
 // The lines under an open issue: what the analyst wrote, where it happened, and why it ranks where it does.
 export function issueDetails(issue: Issue) {
-  const lines: string[] = []
-  const said = issue.kind === 'detected' ? issue.state || issue.summary : issue.summary
-  if (said) lines.push(said)
-  if (issue.culprit) lines.push(issue.culprit)
-  if (issue.errors?.length) lines.push(`explains ${issue.errors.join(', ')}`)
-  if (issue.pull) lines.push(`opened for #${issue.pull}`)
-  if (issue.reasons?.length) lines.push(issue.reasons.join(' · '))
-  return lines
+  return issue.summary ? [issue.summary] : []
 }
 
 // An error issue is one service's across every environment; its page is one environment's.
