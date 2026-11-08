@@ -109,9 +109,12 @@ The mark before each pull request is its verdict: `✓` worked, `✗` did not wo
 `·` due, or `•` closed without a result. **Ask** puts a
 `/packrat:ask` prompt in the input for you to send, and **View PR** opens the pull request's page on
 Packrat. A merged pull request joins the list once Packrat records the deploy that shipped it,
-within seconds of the new version's first request to Packrat, so the pane shows it at its next read. A pull request deployed in the last hour opens by itself. The pane reads Packrat every
-minute while it is open, and asks nothing until you type `/packrat`. A pull request with a verdict and no check
-still open is read again every 15 minutes rather than every minute.
+within seconds of the new version's first request to Packrat, so the pane shows it at its next read. A pull request deployed in the last hour opens by itself. The pane asks nothing until you type
+`/packrat`, and nothing while it is closed or behind another tab; it reads again when you bring it back. While it
+is on screen it checks every minute, but reads a pull request every minute only in the first hour after its
+deploy. After that a pending pull request is read every 5 minutes, since its verdict changes only when the analyst
+looks, about once an hour, and one with a verdict and no check still open every 15 minutes. **Refresh** reads
+everything at once.
 
 Press `2`, or type `/packrat issues`, for the **Issues** tab: the app's unresolved issues, error issues
 and AI-detected ones (marked `AI`), in the order of its Issues page on Packrat:

@@ -93,3 +93,36 @@ test('/packrat issues opens the Issues tab, asking for the app the pull requests
   expect(drawn).toContain('Issues (1)')
   expect(asked.find(argv => argv.includes(' issues '))).toContain('issues --json --limit 25 --app colorbook --environment production')
 })
+
+test('a pane behind another tab asks Packrat nothing, and an old pending pull request is read every five minutes', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt + 3 * 60 * 60 * 1000 })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  let reads = 0
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (argv.endsWith('pr show 572 --json')) {
+      reads += 1
+      return answer(JSON.stringify(shown))
+    }
+    throw new Error(`unexpected ${argv}`)
+  })
+  on('ui.open', async () => ({ value: undefined }))
+  let isShown = true
+  on('ui.panes', async () => ({ value: [{ id: 'packrat', title: 'Packrat', isShown, isFocused: isShown, isPlaced: true }] }))
+
+  await $.command.run({ command: 'packrat' })
+  await clock.settle()
+  const first = reads
+
+  await clock.advance(3 * 60 * 1000)
+  expect(reads).toBe(first)
+  await clock.advance(3 * 60 * 1000)
+  expect(reads).toBe(first + 1)
+
+  isShown = false
+  await clock.advance(20 * 60 * 1000)
+  expect(reads).toBe(first + 1)
+})
