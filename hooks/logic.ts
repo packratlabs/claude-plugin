@@ -109,7 +109,7 @@ export function summary(prs: readonly Pr[]) {
   const parts: { text: string; tone: Tone }[] = []
   for (const v of ['didnt', 'partly', 'pending', 'worked'] as const) {
     const n = prs.filter(pr => verdict(pr.state) === v).length
-    if (n > 0) parts.push({ text: `${n} ${VERDICTS[v].label}`, tone: VERDICTS[v].tone })
+    if (n > 0) parts.push({ text: `${VERDICTS[v].glyph} ${n} ${VERDICTS[v].label}`, tone: VERDICTS[v].tone })
   }
   return parts
 }
@@ -244,7 +244,7 @@ export function issueSummary(issues: readonly Issue[]) {
   const parts: { text: string; tone: Tone }[] = []
   for (const key of ['critical', 'high', 'low', '']) {
     const n = issues.filter(issue => (issue.severity ?? '') === key).length
-    if (n > 0) parts.push({ text: `${n} ${SEVERITIES[key]!.label}`, tone: SEVERITIES[key]!.tone })
+    if (n > 0) parts.push({ text: `${SEVERITIES[key]!.glyph} ${n} ${SEVERITIES[key]!.label}`, tone: SEVERITIES[key]!.tone })
   }
   return parts
 }
@@ -258,14 +258,7 @@ export function issueTally(issue: Issue) {
 
 // The lines under an open issue: what the analyst wrote, where it happened, and why it ranks where it does.
 export function issueDetails(issue: Issue) {
-  const lines: string[] = []
-  const said = issue.kind === 'detected' ? issue.state || issue.summary : issue.summary
-  if (said) lines.push(said)
-  if (issue.culprit) lines.push(issue.culprit)
-  if (issue.errors?.length) lines.push(`explains ${issue.errors.join(', ')}`)
-  if (issue.pull) lines.push(`opened for #${issue.pull}`)
-  if (issue.reasons?.length) lines.push(issue.reasons.join(' · '))
-  return lines
+  return issue.summary ? [issue.summary] : []
 }
 
 // An error issue is one service's across every environment; its page is one environment's.

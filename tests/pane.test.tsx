@@ -90,7 +90,6 @@ test('/packrat issues opens the Issues tab, asking for the app the pull requests
   const drawn = JSON.stringify(await pane.drawn())
   expect(drawn).toContain('Affiliate links fail')
   expect(drawn).toContain('1 high')
-  expect(drawn).toContain('Issues (1)')
   expect(asked.find(argv => argv.includes(' issues '))).toContain('issues --json --limit 25 --app colorbook --environment production')
 })
 

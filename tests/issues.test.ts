@@ -9,7 +9,7 @@ const issue = (over: Partial<Issue>): Issue => ({
 
 test('the summary counts issues by severity, worst first', () => {
   const parts = issueSummary([issue({ severity: 'high' }), issue({}), issue({ severity: 'critical' }), issue({ severity: 'high' })])
-  expect(parts.map(part => part.text)).toEqual(['1 critical', '2 high', '1 unrated'])
+  expect(parts.map(part => part.text)).toEqual(['▲ 1 critical', '▲ 2 high', '· 1 unrated'])
 })
 
 test('an unrated issue has the unrated mark', () => {
@@ -23,9 +23,11 @@ test('the tally names a substatus only when it is news', () => {
   expect(issueTally(issue({ substatus: 'regressed', users: 4 }))).toBe('regressed · 3 ev · 4 users')
 })
 
-test('an AI-detected issue says its state, the errors it explains and the pull request it was opened for', () => {
-  const found = issue({ kind: 'detected', culprit: null, state: 'Gift card carts fail.', errors: ['SHOP-1', 'SHOP-4'], pull: 482, reasons: ['rising'] })
-  expect(issueDetails(found)).toEqual(['Gift card carts fail.', 'explains SHOP-1, SHOP-4', 'opened for #482', 'rising'])
+test('an issue says its one-line summary, and never the analyst\'s notes', () => {
+  const found = issue({ kind: 'detected', culprit: null, summary: 'Gift card carts fail to pay.', state: 'Six of ten looks since the deploy saw it.', errors: ['SHOP-1'], pull: 482, reasons: ['rising'] })
+  expect(issueDetails(found)).toEqual(['Gift card carts fail to pay.'])
+  expect(issueDetails(issue({ kind: 'detected', state: 'Not back.' }))).toEqual([])
+  expect(issueDetails(issue({}))).toEqual([])
 })
 
 test('View issue opens the page of its environment, or nothing without an org', () => {
