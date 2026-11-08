@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Says at the start of a session when a newer plugin is out. Claude Code updates a plugin from a marketplace outside
+# Anthropic only with auto-update on, and says nothing of a newer one otherwise. GitHub is asked at most once a day,
+# for two seconds at most, and a check that fails says nothing.
+set -uo pipefail
+
+root="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+mine=$(jq -r '.version // empty' "$root/.claude-plugin/plugin.json" 2>/dev/null)
+[ -n "$mine" ] || exit 0
+
+latest_url="${PACKRAT_PLUGIN_LATEST_URL:-https://raw.githubusercontent.com/packratlabs/claude-plugin/main/.claude-plugin/plugin.json}"
+cache="${CLAUDE_PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/packrat}/plugin-latest"
+if [ ! -f "$cache" ] || [ -n "$(find "$cache" -mmin +1440 2>/dev/null)" ]; then
+  mkdir -p "$(dirname "$cache")" 2>/dev/null || exit 0
+  latest=$(curl -fsS --max-time 2 "$latest_url" 2>/dev/null | jq -r '.version // empty' 2>/dev/null)
+  if [ -n "$latest" ]; then printf '%s\n' "$latest" > "$cache"; else touch "$cache"; fi
+fi
+latest=$(head -1 "$cache" 2>/dev/null)
+[ -n "$latest" ] && [ "$latest" != "$mine" ] || exit 0
+[ "$(printf '%s\n%s\n' "$mine" "$latest" | sort -V | tail -1)" = "$latest" ] || exit 0
+
+jq -n --arg text "Packrat plugin $latest is out (you have $mine). Update it with ! claude plugin update packrat@packrat, then run /reload-plugins. To have Claude Code update it for you, run /plugin, open Marketplaces, choose packrat and select Enable auto-update." \
+  '{systemMessage: $text}'
