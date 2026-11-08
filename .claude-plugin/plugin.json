@@ -1,6 +1,6 @@
 {
   "name": "packrat",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Query your Packrat data, declare the checks that verify each pull request, and see how pull requests did in production in a pane beside the chat.",
   "author": {
     "name": "Packrat Labs",
