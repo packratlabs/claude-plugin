@@ -36,6 +36,7 @@ test('a failed check with the reason the deploy still worked is excused, not fai
 test('a check closed with no result is shown as closed on the day it closed, not as due', async () => {
   const closed = check({ result: '', closed_at: '2026-11-04T01:35:52Z', due_at: '2026-11-03T00:00:00Z' })
   expect(checkGlyph(closed)).toEqual({ glyph: '•', tone: 'subtle' })
+  expect(checkGlyph(check({ result: '' }))).toEqual({ glyph: '◷', tone: 'suggestion' })
   expect(checkWhen(closed, now)).toBe('4 Nov')
   expect(checkWhen(check({ result: 'passed', closed_at: '2026-11-05T00:00:00Z', runs: [{ at: '2026-11-04T09:00:00Z', result: 'passed', evidence: 'e' }] }), now)).toBe('4 Nov')
   expect(checkWhen(check({ due_at: '2026-11-06T11:00:00Z' }), now)).toBe('next look')

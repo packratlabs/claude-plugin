@@ -141,7 +141,7 @@ export function checkGlyph(check: Check): { glyph: string; tone: Tone } {
     case 'inconclusive':
       return { glyph: '?', tone: 'warning' }
     default:
-      return { glyph: '·', tone: 'subtle' }
+      return { glyph: VERDICTS.pending.glyph, tone: VERDICTS.pending.tone }
   }
 }
 
