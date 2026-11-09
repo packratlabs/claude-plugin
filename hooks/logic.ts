@@ -165,10 +165,12 @@ export function ago(ms: number) {
   return `${Math.floor(s / 86400)}d`
 }
 
-export function countdown(ms: number) {
-  const s = Math.max(0, Math.round(ms / 1000))
-  if (s >= 3600) return `${Math.floor(s / 3600)}h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}m`
-  return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`
+// Coarser the further off it is: minutes within the hour, hours and minutes within six, then hours alone.
+export function until(ms: number) {
+  const m = Math.max(1, Math.ceil(ms / 60_000))
+  if (m < 60) return `${m}m`
+  if (m < 6 * 60) return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`
+  return `${Math.round(m / 60)}h`
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -183,8 +185,16 @@ export function due(check: Check, now: number) {
   const at = Date.parse(runs)
   if (Number.isNaN(at)) return ''
   if (at <= now) return 'next look'
-  if (at - now < 24 * 3600 * 1000) return `in ${countdown(at - now)}`
+  if (at - now < 24 * 3600 * 1000) return `in ${until(at - now)}`
   return day(runs)
+}
+
+// When the first open check of any pull request listed runs: '' when none is open.
+export function nextCheck(prs: readonly Pr[], now: number) {
+  const open = prs.flatMap(pr => pr.checks).filter(check => check.closed_at === null)
+  if (open.length === 0) return ''
+  const first = open.reduce((a, b) => (Date.parse(b.runs_at ?? b.due_at) < Date.parse(a.runs_at ?? a.due_at) ? b : a))
+  return due(first, now)
 }
 
 // The widest a check's time can be: 'in 14h 04m'.
