@@ -34,12 +34,20 @@ test('a failed check with the reason the deploy still worked is excused, not fai
 })
 
 test('a check closed with no result is shown as closed on the day it closed, not as due', async () => {
-  const closed = check({ result: '', closed_at: '2026-11-04T01:35:52Z', due_at: '2026-11-03T00:00:00Z' })
+  const closed = check({ result: '', closed_at: '2026-11-04T13:35:52Z', due_at: '2026-11-03T00:00:00Z' })
   expect(checkGlyph(closed)).toEqual({ glyph: '•', tone: 'subtle' })
   expect(checkGlyph(check({ result: '' }))).toEqual({ glyph: '◷', tone: 'suggestion' })
   expect(checkWhen(closed, now)).toBe('4 Nov')
   expect(checkWhen(check({ result: 'passed', closed_at: '2026-11-05T00:00:00Z', runs: [{ at: '2026-11-04T09:00:00Z', result: 'passed', evidence: 'e' }] }), now)).toBe('4 Nov')
   expect(checkWhen(check({ due_at: '2026-11-06T11:00:00Z' }), now)).toBe('next look')
+})
+
+test('an open check counts down to when it runs, not to when it is due', async () => {
+  const at = Date.parse('2026-11-06T12:00:00Z')
+  expect(checkWhen(check({ due_at: '2026-11-07T11:13:00Z', runs_at: '2026-11-07T12:08:00Z' }), at)).toBe('7 Nov')
+  expect(checkWhen(check({ due_at: '2026-11-06T13:13:00Z', runs_at: '2026-11-06T14:08:00Z' }), at)).toBe('in 2h 08m')
+  expect(checkWhen(check({ due_at: '2026-11-06T13:13:00Z' }), at)).toBe('in 1h 13m')
+  expect(checkWhen(check({ due_at: '2026-11-11T19:13:00Z', runs_at: '2026-11-11T20:08:00Z' }), at)).toBe('11 Nov')
 })
 
 test('a check with no title is named by its first sentence, less the pull request and commit', async () => {

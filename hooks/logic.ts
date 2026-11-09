@@ -7,6 +7,8 @@ export type Check = {
   title: string | null
   what: string
   due_at: string
+  // When it will run: the first hourly look after it is due. Older servers do not send it.
+  runs_at?: string | null
   closed_at: string | null
   result: string | null
   // Why a failed check did not stop the deploy working; the site shows that check as excused.
@@ -143,7 +145,7 @@ export function checkGlyph(check: Check): { glyph: string; tone: Tone } {
   }
 }
 
-// The day a closed check last ran, or when an open one is due.
+// The day a closed check last ran, or when an open one runs.
 export function checkWhen(check: Check, now: number) {
   if (check.closed_at === null) return due(check, now)
   const runs = check.runs ?? []
@@ -173,15 +175,16 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 export function day(iso: string) {
   const t = new Date(iso)
-  return `${t.getUTCDate()} ${MONTHS[t.getUTCMonth()]}`
+  return `${t.getDate()} ${MONTHS[t.getMonth()]}`
 }
 
 export function due(check: Check, now: number) {
-  const at = Date.parse(check.due_at)
+  const runs = check.runs_at ?? check.due_at
+  const at = Date.parse(runs)
   if (Number.isNaN(at)) return ''
   if (at <= now) return 'next look'
   if (at - now < 24 * 3600 * 1000) return `in ${countdown(at - now)}`
-  return day(check.due_at)
+  return day(runs)
 }
 
 // The widest a check's time can be: 'in 14h 04m'.
