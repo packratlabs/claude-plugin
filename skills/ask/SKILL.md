@@ -38,6 +38,22 @@ packrat pr show <number or URL>
 Summarize the verdict, the evidence, the suggested next step and any pending checks. Then stop and let
 the user decide what to do next. Do not change code unless the user asks.
 
+## Resolving and archiving
+
+When the user asks you to resolve, archive or reopen an issue, or to archive a pull request's
+verification, run one of:
+
+```bash
+packrat issues resolve <ID> --reason "<why>"
+packrat issues archive <ID> --reason "<why>"
+packrat issues reopen <ID>
+packrat pr archive <number or URL> --reason "<why>"
+```
+
+Give a reason whenever the conversation says why, in one plain sentence: for example, the check
+measured the wrong thing, or the error is expected. The analyst reads the reason, so a good one keeps
+it from raising the same issue again. Do not resolve or archive anything the user did not ask you to.
+
 ## Queries
 
 Before you run your first `packrat sql` query, read https://packrat.sh/docs/investigate.md. It lists
