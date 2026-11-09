@@ -311,13 +311,6 @@ export const register: Register = (on, options) => {
                 </Button>
                 {isOpen && (
                   <Box flexDirection="column">
-                    {pr.deployedAt !== null && (
-                      <Box marginLeft={2}>
-                        <Text dimColor>
-                          ↗ {ago(now - pr.deployedAt)} ago
-                        </Text>
-                      </Box>
-                    )}
                     {pr.checks.length === 0 && (
                       <Box marginLeft={2}>
                         <Text dimColor>{noChecks(pr, NO_CHECKS)}</Text>
@@ -327,6 +320,7 @@ export const register: Register = (on, options) => {
                     <Box flexDirection="row" gap={1} marginLeft={2}>
                       <Button key={`ask-${pr.number}`} label="Ask" variant="primary" onPress={() => ask(pr.number)} />
                       <Button key={`open-${pr.number}`} label="View PR" onPress={() => openPr(verificationUrl(pr, site))} />
+                      {pr.deployedAt !== null && <Text dimColor>↗ {ago(now - pr.deployedAt)} ago</Text>}
                     </Box>
                   </Box>
                 )}
