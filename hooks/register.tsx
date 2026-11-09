@@ -12,6 +12,7 @@ import {
   checkGlyph,
   checkName,
   checkWhen,
+  nextCheck,
   deployed,
   fit,
   noChecks,
@@ -293,6 +294,7 @@ export const register: Register = (on, options) => {
             {summary(prs).map((part, i) => (
               <Text color={part.tone}>{i > 0 ? '  ' : ''}{part.text}</Text>
             ))}
+            {nextCheck(prs, now) && <Text dimColor>{`  · next check ${nextCheck(prs, now)}`}</Text>}
             {prs.length === 0 && <Text dimColor>{isRefreshing ? 'Reading Packrat…' : 'No deployed pull requests yet.'}</Text>}
           </Text>
           {lastError !== null && <Text color="error" wrap="truncate-end">{lastError}</Text>}
@@ -309,13 +311,6 @@ export const register: Register = (on, options) => {
                 </Button>
                 {isOpen && (
                   <Box flexDirection="column">
-                    {pr.deployedAt !== null && (
-                      <Box marginLeft={2}>
-                        <Text dimColor>
-                          deployed {ago(now - pr.deployedAt)} ago
-                        </Text>
-                      </Box>
-                    )}
                     {pr.checks.length === 0 && (
                       <Box marginLeft={2}>
                         <Text dimColor>{noChecks(pr, NO_CHECKS)}</Text>
@@ -325,6 +320,7 @@ export const register: Register = (on, options) => {
                     <Box flexDirection="row" gap={1} marginLeft={2}>
                       <Button key={`ask-${pr.number}`} label="Ask" variant="primary" onPress={() => ask(pr.number)} />
                       <Button key={`open-${pr.number}`} label="View PR" onPress={() => openPr(verificationUrl(pr, site))} />
+                      {pr.deployedAt !== null && <Text dimColor>deployed {ago(now - pr.deployedAt)} ago</Text>}
                     </Box>
                   </Box>
                 )}

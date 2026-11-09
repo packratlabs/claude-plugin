@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, isSettled, noChecks, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, isSettled, nextCheck, noChecks, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -48,6 +48,13 @@ test('an open check counts down to when it runs, not to when it is due', async (
   expect(checkWhen(check({ due_at: '2026-11-06T13:13:00Z', runs_at: '2026-11-06T14:08:00Z' }), at)).toBe('in 2h 08m')
   expect(checkWhen(check({ due_at: '2026-11-06T13:13:00Z' }), at)).toBe('in 1h 13m')
   expect(checkWhen(check({ due_at: '2026-11-11T19:13:00Z', runs_at: '2026-11-11T20:08:00Z' }), at)).toBe('11 Nov')
+})
+
+test('a check further off is shown to a coarser unit', async () => {
+  const at = Date.parse('2026-11-06T12:00:00Z')
+  expect(checkWhen(check({ due_at: '2026-11-06T12:41:30Z' }), at)).toBe('in 42m')
+  expect(checkWhen(check({ due_at: '2026-11-06T17:59:00Z' }), at)).toBe('in 5h 59m')
+  expect(checkWhen(check({ due_at: '2026-11-07T07:54:00Z' }), at)).toBe('in 20h')
 })
 
 test('a check with no title is named by its first sentence, less the pull request and commit', async () => {
@@ -111,4 +118,15 @@ test('a pending pull request is read every minute in its first hour, then every 
   expect(rereadAfter(merged, answer, deployedAt + 2 * 60 * 60 * 1000)).toBe(5 * 60 * 1000)
   expect(rereadAfter(merged, { ...answer, state: 'confirmed' }, deployedAt + 2 * 60 * 60 * 1000)).toBe(15 * 60 * 1000)
   expect(rereadAfter(merged, null, deployedAt)).toBe(0)
+})
+
+test('the summary says when the first open check of any pull request runs', async () => {
+  const at = Date.parse('2026-11-06T12:00:00Z')
+  const pr = (checks: Check[]): Pr => ({ ...merged, app: 'a/production', org: 'org_1', state: null, deployedAt: at, checks, none: null })
+  expect(nextCheck([pr([])], at)).toBe('')
+  expect(nextCheck([pr([check({ closed_at: '2026-11-05T00:00:00Z', result: 'passed' })])], at)).toBe('')
+  expect(nextCheck([
+    pr([check({ due_at: '2026-11-11T19:13:00Z', runs_at: '2026-11-11T20:08:00Z' })]),
+    pr([check({ due_at: '2026-11-06T13:13:00Z', runs_at: '2026-11-06T14:08:00Z' })]),
+  ], at)).toBe('in 2h 08m')
 })
