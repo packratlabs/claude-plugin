@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, isSettled, nextCheck, noChecks, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, isSettled, nextCheck, noChecks, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -129,4 +129,10 @@ test('the summary says when the first open check of any pull request runs', asyn
     pr([check({ due_at: '2026-11-11T19:13:00Z', runs_at: '2026-11-11T20:08:00Z' })]),
     pr([check({ due_at: '2026-11-06T13:13:00Z', runs_at: '2026-11-06T14:08:00Z' })]),
   ], at)).toBe('in 2h 08m')
+})
+
+test('wraps text at spaces so each line can carry the rail', async () => {
+  expect(wrap('Checkout times out when the card network is slow', 20)).toEqual(['Checkout times out', 'when the card', 'network is slow'])
+  expect(wrap('', 20)).toEqual([])
+  expect(wrap('abcdefghij', 4)).toEqual(['abcd'])
 })
