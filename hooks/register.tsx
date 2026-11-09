@@ -6,14 +6,12 @@ import {
   type Merged,
   type Pr,
   type PullAnswer,
-  FIRST_LOOK_MS,
   VERDICTS,
   WHEN_WIDTH,
   ago,
   checkGlyph,
   checkName,
   checkWhen,
-  countdown,
   deployed,
   fit,
   noChecks,
@@ -304,8 +302,6 @@ export const register: Register = (on, options) => {
             const v = VERDICTS[verdict(pr.state)]
             // A pull request in its first hour opens by itself; pressing it flips that, as for any other.
             const isOpen = expanded.has(pr.number) !== isLive(pr, now)
-            const firstLook = (pr.deployedAt ?? now) + FIRST_LOOK_MS
-            const hasRun = pr.checks.some(check => (check.runs?.length ?? 0) > 0)
             return (
               <Box key={`row-${pr.number}`} flexDirection="column">
                 <Button key={`pr-${pr.number}`} plain onPress={() => toggle(pr.number)}>
@@ -317,7 +313,6 @@ export const register: Register = (on, options) => {
                       <Box marginLeft={2}>
                         <Text dimColor>
                           deployed {ago(now - pr.deployedAt)} ago
-                          {isLive(pr, now) && !hasRun && (firstLook > now ? ` · first look in ${countdown(firstLook - now)}` : ' · first look running')}
                         </Text>
                       </Box>
                     )}

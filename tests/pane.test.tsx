@@ -13,7 +13,7 @@ const shown = {
 
 const answer = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
 
-test('a pull request deployed minutes ago draws, with the time to its first look', async ($, on) => {
+test('a pull request deployed minutes ago draws, with when it deployed', async ($, on) => {
   const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
   mock.env(on, { HOME: '/home/dev' })
   on('session.root', async () => ({ value: '/repo' }))
@@ -34,7 +34,9 @@ test('a pull request deployed minutes ago draws, with the time to its first look
     plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
     props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 60, placement: 'dock' } as never,
   })
-  expect(JSON.stringify(await pane.drawn())).toContain('first look in 6m 00s')
+  const drawn = JSON.stringify(await pane.drawn())
+  expect(drawn).toContain('"deployed ","4m"," ago"')
+  expect(drawn).not.toContain('first look')
 })
 
 test('a pane open across a reload starts again by itself, with no /packrat', async ($, on) => {
@@ -54,7 +56,9 @@ test('a pane open across a reload starts again by itself, with no /packrat', asy
     props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 60, placement: 'dock' } as never,
   })
   await clock.settle()
-  expect(JSON.stringify(await pane.drawn())).toContain('first look in 6m 00s')
+  const drawn = JSON.stringify(await pane.drawn())
+  expect(drawn).toContain('"deployed ","4m"," ago"')
+  expect(drawn).not.toContain('first look')
 })
 
 test('/packrat issues opens the Issues tab, asking for the app the pull requests named', async ($, on) => {
