@@ -13,6 +13,7 @@ import {
   checkName,
   checkWhen,
   nextCheck,
+  wrap,
   deployed,
   fit,
   noChecks,
@@ -275,14 +276,15 @@ export const register: Register = (on, options) => {
       const ask = (n: number) => void $.prompt.fill({ text: `/packrat:ask how did PR ${n} do`, mode: 'replace' })
       const openPr = (url: string) => void $.process.run(['open', url], { timeoutMs: 10_000 })
 
-      const checkLines = (pr: Pr, indent: number) =>
+      // An open pull request's checks hang off a rail that ends at its buttons, so the block reads as one thing.
+      const checkLines = (pr: Pr) =>
         pr.checks.map(check => {
           const mark = checkGlyph(check)
           const when = checkWhen(check, now)
           return (
-            <Box key={`check-${check.id}`} flexDirection="column" marginLeft={indent}>
+            <Box key={`check-${check.id}`} flexDirection="column">
               <Text>
-                <Text color={mark.tone}>{mark.glyph}</Text> {fit(checkName(check), Math.max(10, width - indent - 4 - WHEN_WIDTH))} <Text dimColor>{when}</Text>
+                <Text dimColor>│ </Text><Text color={mark.tone}>{mark.glyph}</Text> {fit(checkName(check), Math.max(10, width - 6 - WHEN_WIDTH))} <Text dimColor>{when}</Text>
               </Text>
             </Box>
           )
@@ -307,19 +309,16 @@ export const register: Register = (on, options) => {
             return (
               <Box key={`row-${pr.number}`} flexDirection="column">
                 <Button key={`pr-${pr.number}`} plain onPress={() => toggle(pr.number)}>
-                  <Text color={v.tone}>{v.glyph}</Text> #{pr.number} {fit(pr.title, width - 8).trimEnd()}
+                  <Text color={v.tone}>{v.glyph}</Text> <Text bold={isOpen} dimColor={!isOpen && verdict(pr.state) === 'worked'}>#{pr.number} {fit(pr.title, width - 8).trimEnd()}</Text>
                 </Button>
                 {isOpen && (
-                  <Box flexDirection="column">
-                    {pr.checks.length === 0 && (
-                      <Box marginLeft={2}>
-                        <Text dimColor>{noChecks(pr, NO_CHECKS)}</Text>
-                      </Box>
-                    )}
-                    {checkLines(pr, 2)}
-                    <Box flexDirection="row" gap={1} marginLeft={2}>
-                      <Button key={`ask-${pr.number}`} label="Ask" variant="primary" onPress={() => ask(pr.number)} />
-                      <Button key={`open-${pr.number}`} label="View PR" onPress={() => openPr(verificationUrl(pr, site))} />
+                  <Box flexDirection="column" marginBottom={1}>
+                    {pr.checks.length === 0 && <Text dimColor>│ {noChecks(pr, NO_CHECKS)}</Text>}
+                    {checkLines(pr)}
+                    <Box flexDirection="row" gap={1}>
+                      <Text dimColor>└</Text>
+                      <Button key={`ask-${pr.number}`} label="Ask" dimColor onPress={() => ask(pr.number)} />
+                      <Button key={`open-${pr.number}`} label="View PR" dimColor onPress={() => openPr(verificationUrl(pr, site))} />
                       {pr.deployedAt !== null && <Text dimColor>deployed {ago(now - pr.deployedAt)} ago</Text>}
                     </Box>
                   </Box>
@@ -361,16 +360,17 @@ export const register: Register = (on, options) => {
               <Box key={`issue-row-${issue.id}`} flexDirection="column">
                 <Button key={`issue-${issue.id}`} plain onPress={() => toggleIssue(issue.id)}>
                   <Text color={mark.tone}>{mark.glyph}</Text> {isAi && <Text color="suggestion">AI </Text>}
-                  {fit(issue.title.replace(/\s+/g, ' '), titleWidth)} <Text dimColor>{tally}</Text>
+                  <Text bold={openIssues.has(issue.id)}>{fit(issue.title.replace(/\s+/g, ' '), titleWidth)}</Text> <Text dimColor>{tally}</Text>
                 </Button>
                 {openIssues.has(issue.id) && (
-                  <Box flexDirection="column" marginLeft={2}>
-                    {issueDetails(issue).map((line, i) => (
-                      <Text key={`issue-${issue.id}-line-${i}`}>{line}</Text>
+                  <Box flexDirection="column" marginBottom={1}>
+                    {issueDetails(issue).flatMap(detail => wrap(detail, width - 2)).map((line, i) => (
+                      <Text key={`issue-${issue.id}-line-${i}`}><Text dimColor>│ </Text>{line}</Text>
                     ))}
                     <Box flexDirection="row" gap={1}>
-                      <Button key={`ask-issue-${issue.id}`} label="Ask" variant="primary" onPress={() => askIssue(issue.id)} />
-                      {url && <Button key={`open-issue-${issue.id}`} label="View issue" onPress={() => openPr(url)} />}
+                      <Text dimColor>└</Text>
+                      <Button key={`ask-issue-${issue.id}`} label="Ask" dimColor onPress={() => askIssue(issue.id)} />
+                      {url && <Button key={`open-issue-${issue.id}`} label="View issue" dimColor onPress={() => openPr(url)} />}
                     </Box>
                   </Box>
                 )}

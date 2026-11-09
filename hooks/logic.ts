@@ -268,6 +268,21 @@ export function issueTally(issue: Issue) {
 }
 
 // The lines under an open issue: what the analyst wrote, where it happened, and why it ranks where it does.
+// Text broken at spaces into lines of at most width, so each can carry the rail; a longer word is cut.
+export function wrap(text: string, width: number) {
+  const lines: string[] = []
+  let line = ''
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    if (line && line.length + 1 + word.length > width) {
+      lines.push(line)
+      line = ''
+    }
+    line = line ? `${line} ${word}` : word.slice(0, width)
+  }
+  if (line) lines.push(line)
+  return lines
+}
+
 export function issueDetails(issue: Issue) {
   return issue.summary ? [issue.summary] : []
 }
