@@ -320,7 +320,7 @@ export const register: Register = (on, options) => {
                     <Box flexDirection="row" gap={1} marginLeft={2}>
                       <Button key={`ask-${pr.number}`} label="Ask" variant="primary" onPress={() => ask(pr.number)} />
                       <Button key={`open-${pr.number}`} label="View PR" onPress={() => openPr(verificationUrl(pr, site))} />
-                      {pr.deployedAt !== null && <Text dimColor>↗ {ago(now - pr.deployedAt)} ago</Text>}
+                      {pr.deployedAt !== null && <Text dimColor>deployed {ago(now - pr.deployedAt)} ago</Text>}
                     </Box>
                   </Box>
                 )}

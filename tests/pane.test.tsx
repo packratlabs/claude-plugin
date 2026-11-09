@@ -35,7 +35,7 @@ test('a pull request deployed minutes ago draws, with when it deployed', async (
     props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 60, placement: 'dock' } as never,
   })
   const drawn = JSON.stringify(await pane.drawn())
-  expect(drawn).toContain('"↗ ","4m"," ago"')
+  expect(drawn).toContain('"deployed ","4m"," ago"')
   expect(drawn).not.toContain('first look')
 })
 
@@ -57,7 +57,7 @@ test('a pane open across a reload starts again by itself, with no /packrat', asy
   })
   await clock.settle()
   const drawn = JSON.stringify(await pane.drawn())
-  expect(drawn).toContain('"↗ ","4m"," ago"')
+  expect(drawn).toContain('"deployed ","4m"," ago"')
   expect(drawn).not.toContain('first look')
 })
 
