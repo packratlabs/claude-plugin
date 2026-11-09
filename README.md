@@ -97,7 +97,7 @@ Packrat PR Verifications · colorbook/production
 ◷ #570 Send J.Crew and J.Crew Factory visits through CJ
   deployed 48m ago
   ? J.Crew visits go to CJ                                6 Nov
-  · The CJ sync runs without errors                       in 14h 04m
+  ◷ The CJ sync runs without errors                       in 14h 04m
   [ Ask ] [ View PR ]
 ✓ #566 Store black colorways from Quince bag lists
 ✗ #564 Read Loft inventory through Scrapfly in one session per run
@@ -106,7 +106,7 @@ Packrat PR Verifications · colorbook/production
 The mark before each pull request is its verdict: `✓` worked, `✗` did not work, `◐` worked in part,
 `◷` pending and `–` not verified. Select a pull request to list its checks, each marked `✓` passed,
 `✗` failed, `⊘` excused (it failed, and the analyst says why the deploy still worked), `?` inconclusive,
-`·` due, or `•` closed without a result. **Ask** puts a
+`◷` due, or `•` closed without a result. **Ask** puts a
 `/packrat:ask` prompt in the input for you to send, and **View PR** opens the pull request's page on
 Packrat. A merged pull request joins the list once Packrat records the deploy that shipped it,
 within seconds of the new version's first request to Packrat, so the pane shows it at its next read. A pull request deployed in the last hour opens by itself. The pane asks nothing until you type
