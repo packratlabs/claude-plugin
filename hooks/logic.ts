@@ -52,8 +52,6 @@ export function verdict(state: string | null): Verdict {
 }
 
 export const LIVE_MS = 60 * 60 * 1000
-// Analyst::DeployJob asks for a look ten minutes after a deploy goes live.
-export const FIRST_LOOK_MS = 10 * 60 * 1000
 
 // How long the pane keeps a settled answer before asking again. Not forever: a later deploy can fix a pull request
 // that did not work, or ship it again.
