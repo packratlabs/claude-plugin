@@ -87,12 +87,13 @@ Declaring checks needs `packrat` 0.1.4 or later.
 
 ### Packrat pane
 
-Type `/packrat` to open a pane on the **Overview** tab: the items of the analyst's latest daily summary,
-each with its chart drawn as a sparkline:
+Type `/packrat` to open a pane on the **Overview** tab: what the analyst said about the app in the last
+24 hours, newest first. That is each daily summary's items, with each chart drawn as a sparkline, and each
+urgent mail and update. It ends with the counts of the other two tabs:
 
 ```
 ▸ Overview    PR Verifications    Issues  packrat/production
-Latest summary, 2h ago
+What the analyst said in the last 24 hours
 
 ◐ Migration pod still records deploys early   ▁█▁█▁        PACKRAT-70
 │ Seconds between the migration pod's log and the first server
@@ -101,22 +102,22 @@ Latest summary, 2h ago
 │ The migrations for #221 and #223 logged their versions
 │ ~30s before any server ran them.
 │
-│ Why it matters
-│ Deploy times read half a minute early.
-│
-│ Evidence
-│ 31s and 29s early; #221's deploy job failed.
-│
 │ Next
 │ Have ingest ignore packrat's own migration pod.
-└ Ask  PACKRAT-70
+└ Ask  PACKRAT-70  summary, 2h ago
+✓ Plugin pane reads fast again                ▂▁▇█▆▁▁      PACKRAT-74
 ✓ Pull requests judged by own checks          ▁▁▃▁█▁▁   #219 Worked
+
+PR Verifications  ◐ 1 partly  ◷ 2 pending  ✓ 6 worked  →
+Issues  ▲ 1 high  ▽ 5 low  →
 ```
 
-Each item is `act` (●), `watch` (◐), `shipped` or `better` (✓). A shipped item is about one pull
-request and wears its verification's mark and state as PR Verifications shows it now, so the two never
-disagree. Select an item to open it. The first `act` or `watch` item opens by itself. Overview needs
-`packrat` 0.1.9 or later.
+Each item is `act` or an urgent mail (●), `watch` or an update (◐), `shipped`, or `better` (✓). A thing
+told twice in the day is shown once, by the latest word on it. A shipped item is about one pull request
+and wears its verification's mark and state as PR Verifications shows it now, so the two never disagree.
+Select an item to open it, laid out as the mail lays it out. The first `act`, `watch` or urgent item
+opens by itself. Select a count line to open that tab. The last day's feed needs `packrat` 0.1.10 or
+later; 0.1.9 shows the latest summary alone.
 
 Click **PR Verifications**, or type `/packrat pulls`, for the repository's recently deployed pull
 requests and how each did in production:
@@ -176,7 +177,7 @@ The pane needs:
 
 - The [GitHub CLI](https://cli.github.com) (`gh`), signed in to the repository, to list merged pull
   requests.
-- `packrat` 0.1.2 or later, 0.1.5 or later for the Issues tab, and 0.1.9 or later for the Overview tab. Run `packrat update` if the pane says the
+- `packrat` 0.1.2 or later, 0.1.5 or later for the Issues tab, and 0.1.9 or later for the Overview tab (0.1.10 for the last day's feed). Run `packrat update` if the pane says the
   CLI is too old.
 - A Claude Code version that loads plugin modules. The pane is built on Claude Code's plugin module
   API, which is in early access and can change between releases.

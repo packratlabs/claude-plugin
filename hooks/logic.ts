@@ -295,10 +295,15 @@ export function issueUrl(issue: Issue, list: { app: string; org?: string }, env:
   return `${site.replace(/\/+$/, '')}/orgs/${list.org}/apps/${app}/issues/${encodeURIComponent(issue.id)}`
 }
 
-// One answer of `packrat overview --json`: the items of an app's latest daily summary. A shipped item's pull request
-// carries its verification's state now, so the item and PR Verifications always agree.
+// One answer of `packrat overview --json`: what the analyst said in the last day (`feed`, from packrat 0.1.10), and
+// the latest daily summary's items alone. A shipped item's pull request carries its verification's state now, so the
+// item and PR Verifications always agree. An urgent mail or update is an item with its markdown in `body`.
 export type OverviewItem = {
-  status: 'act' | 'watch' | 'shipped' | 'better' | string
+  kind?: 'daily' | 'urgent' | 'update' | string
+  report?: string
+  at?: string
+  body?: string | null
+  status: 'act' | 'watch' | 'shipped' | 'better' | 'urgent' | 'update' | string
   title: string
   changed: string
   matters: string
@@ -313,6 +318,15 @@ export type Overview = {
   org?: string
   report: { id: string; subject: string; at: string; from: string; to: string } | null
   items: OverviewItem[]
+  feed?: OverviewItem[]
+}
+
+// A mail's markdown as the pane prints it: paragraphs, with links and emphasis as their words.
+export function plainParagraphs(markdown: string) {
+  return markdown
+    .split(/\n\s*\n/)
+    .map(part => part.replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\*\*|__|`/g, '').replace(/^#+\s*|^\s*[-*]\s+/gm, '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
 }
 
 const BARS = '▁▂▃▄▅▆▇█'
@@ -333,8 +347,10 @@ export function itemMark(item: OverviewItem): { glyph: string; tone: Tone } {
   }
   switch (item.status) {
     case 'act':
+    case 'urgent':
       return { glyph: '●', tone: 'error' }
     case 'watch':
+    case 'update':
       return { glyph: '◐', tone: 'warning' }
     default:
       return { glyph: '✓', tone: 'success' }

@@ -5,8 +5,10 @@ import {
   type IssueList,
   type Overview,
   type OverviewItem,
+  type Tone,
   SPARK_WIDTH,
   itemMark,
+  plainParagraphs,
   sparkline,
   type Merged,
   type Pr,
@@ -199,6 +201,8 @@ async function refreshOverview($: Api) {
   if (repo === null || isRefreshingOverview) return
   isRefreshingOverview = true
   $.ui.invalidate('ui.render')
+  // The Overview ends with the Issues tab's counts, so it reads the issues too.
+  if (issues === null || (await $.clock.now()) - issuesCheckedAt >= POLL_MS) void refreshIssues($)
   try {
     const read = await $.process.run([cli, 'overview', '--json'], { cwd: root, timeoutMs: 45_000 })
     if (read.exitCode !== 0) {
@@ -424,7 +428,17 @@ export const register: Register = (on, options) => {
       }
       const ov = overview
       const ovBase = ov && ov.org ? `${site.replace(/\/+$/, '')}/orgs/${ov.org}/apps/${ov.app.split('/').map(encodeURIComponent).join('/')}` : null
-      const firstProblem = ov?.items.findIndex(item => item.status === 'act' || item.status === 'watch') ?? -1
+      // A CLI older than 0.1.10 drops the feed, so the pane falls back to the latest summary's items.
+      const ovItems = ov ? ov.feed ?? ov.items : []
+      const firstProblem = ovItems.findIndex(item => ['act', 'watch', 'urgent'].includes(item.status))
+      const tabLink = (to: 'pulls' | 'issues', label: string, parts: { text: string; tone: Tone }[], none: string) => (
+        <Button key={`ov-to-${to}`} plain onPress={() => void show($, to)}>
+          <Text bold>{label}</Text>{'  '}
+          {parts.map((part, i) => <Text key={`ov-to-${to}-${i}`} color={part.tone}>{i > 0 ? '  ' : ''}{part.text}</Text>)}
+          {parts.length === 0 && <Text dimColor>{none}</Text>}
+          <Text dimColor>  →</Text>
+        </Button>
+      )
       const askItem = (item: OverviewItem) =>
         item.pull ? ask(item.pull.number) : item.issue ? askIssue(item.issue) : void $.prompt.fill({ text: `/packrat:ask look into "${item.title}"`, mode: 'replace' })
 
@@ -432,13 +446,12 @@ export const register: Register = (on, options) => {
         <Box flexDirection="column">
           {overviewError !== null && <Text color="error" wrap="truncate-end">{overviewError}</Text>}
           {ov === null && overviewError === null && <Text dimColor>Reading Packrat…</Text>}
-          {ov !== null && ov.report === null && <Text dimColor>No summary yet. The analyst writes one at 06:00, 12:00 and 18:00 Denver time.</Text>}
-          {ov !== null && ov.report !== null && (
+          {ov !== null && (
             <Box flexDirection="column">
-              <Text dimColor>Latest summary, {ago(now - Date.parse(ov.report.at))} ago</Text>
+              <Text dimColor>{ov.feed ? 'What the analyst said in the last 24 hours' : ov.report ? `Latest summary, ${ago(now - Date.parse(ov.report.at))} ago` : ''}</Text>
               <Box marginTop={1} />
-              {ov.items.length === 0 && <Text dimColor>Nothing worth your minute in it.</Text>}
-              {ov.items.map((item, index) => {
+              {ovItems.length === 0 && <Text dimColor>Nothing yet. The analyst writes a summary at 06:00, 12:00 and 18:00 Denver time.</Text>}
+              {ovItems.map((item, index) => {
                 const key = `item:${index}:${item.title}`
                 const isOpen = flippedOverview.has(key) !== (index === firstProblem)
                 const mark = itemMark(item)
@@ -448,10 +461,16 @@ export const register: Register = (on, options) => {
                 // As the mail lays an item out: the chart's caption, then each part under its own dim label, a blank line between.
                 const parts = [['What changed', item.changed], ['Why it matters', item.matters], ['Evidence', item.evidence], ['Next', item.next]]
                   .filter(([, text]) => text)
+                const blocks: { label: string | null; text: string }[] = item.body
+                  ? plainParagraphs(item.body).map(text => ({ label: null, text }))
+                  : parts.map(([label, text]) => ({ label: label!, text: text! }))
                 const lines = [
                   ...(item.chart?.caption ? [{ text: item.chart.caption, dim: true }] : []),
-                  ...parts.flatMap(([label, text]) => [{ text: '', dim: false }, { text: label!, dim: true }, ...wrap(text!, width - 2).map(line => ({ text: line, dim: false }))]),
+                  ...blocks.flatMap(({ label, text }) => [
+                    { text: '', dim: false }, ...(label ? [{ text: label, dim: true }] : []), ...wrap(text, width - 2).map(line => ({ text: line, dim: false })),
+                  ]),
                 ].filter((line, i) => i > 0 || line.text !== '')
+                const said = item.at ? `${item.kind === 'daily' ? 'summary' : item.kind === 'update' ? 'update' : 'urgent mail'}, ${ago(now - Date.parse(item.at))} ago` : ''
                 return (
                   <Box key={`ov-item-${index}`} flexDirection="column">
                     <Button key={`ov-item-row-${index}`} plain onPress={() => flipOverview(key)}>
@@ -469,12 +488,16 @@ export const register: Register = (on, options) => {
                           <Button key={`ov-ask-${index}`} label="Ask" dimColor onPress={() => askItem(item)} />
                           {item.issue && ovBase && <Button key={`ov-issue-${index}`} label={item.issue} dimColor onPress={() => openPr(`${ovBase}/issues/${encodeURIComponent(item.issue!)}`)} />}
                           {item.pull && ovBase && <Button key={`ov-pull-${index}`} label="View PR" dimColor onPress={() => openPr(`${ovBase}/pulls/${item.pull!.number}`)} />}
+                          {said && <Text dimColor>{said}</Text>}
                         </Box>
                       </Box>
                     )}
                   </Box>
                 )
               })}
+              <Box marginTop={1} />
+              {tabLink('pulls', 'PR Verifications', summary(prs), 'none deployed lately')}
+              {tabLink('issues', 'Issues', issueSummary(issues?.issues ?? []), issues ? 'none open' : 'reading…')}
             </Box>
           )}
         </Box>

@@ -172,3 +172,43 @@ test('a pane behind another tab asks Packrat nothing, and an old pending pull re
   await clock.advance(20 * 60 * 1000)
   expect(reads).toBe(first + 1)
 })
+
+test("the Overview reads the last day's feed, an urgent mail as paragraphs, and ends with each tab's counts", async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  const feed = [
+    { kind: 'urgent', report: 'rep_2', at: new Date(deployedAt - 30 * 60_000).toISOString(), status: 'urgent', title: 'Checkout fails for gift cards',
+      changed: null, matters: null, evidence: null, next: null, body: '**Gift card carts fail to pay.**\n\nRoll back [#490](https://x/490).', issue: 'COLORBOOK-71', pull: null, chart: null },
+    { ...overviewAnswer.items[1], kind: 'daily', report: 'rep_1', at: new Date(deployedAt - 2 * 3600_000).toISOString(), body: null },
+  ]
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(shown))
+    if (argv.endsWith('overview --json')) return answer(JSON.stringify({ ...overviewAnswer, feed }))
+    if (argv.includes(' issues --json')) {
+      return answer(JSON.stringify({ app: 'colorbook', org: 'org_abc123', period: '14d', issues: [
+        { id: 'COLORBOOK-71', kind: 'detected', title: 'Gift cards fail', culprit: null, status: 'unresolved', substatus: 'new', severity: 'high', summary: null, events: 3, users: 2, last_seen: null },
+      ] }))
+    }
+    throw new Error(`unexpected ${argv}`)
+  })
+  on('ui.open', async () => ({ value: undefined }))
+
+  await $.command.run({ command: 'packrat' })
+  await clock.settle()
+
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat', isFocused: true, bodyColumns: 72, placement: 'dock' } as never,
+  })
+  const drawn = JSON.stringify(await pane.drawn())
+  for (const text of ['What the analyst said in the last 24 hours', 'Checkout fails for gift cards', 'Gift card carts fail to pay.', 'Roll back #490.',
+    'urgent mail, ', 'Palette cached', '#560 Did not work', 'PR Verifications', '◷ 1 pending', 'Issues', '1 high', '→']) {
+    expect(drawn).toContain(text)
+  }
+  expect(drawn).not.toContain('**')
+  expect(drawn).not.toContain('Migration pod records deploys')
+})
