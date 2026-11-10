@@ -8,7 +8,7 @@ The Packrat plugin for Claude Code gives Claude access to your app's production 
 - Query your traces and logs with SQL to investigate production issues.
 - Schedule a check that the analyst runs at a later time, with the result sent by email.
 - Declare the checks Packrat runs to verify each pull request after it deploys.
-- Show the analyst's latest daily summary, and how the repository's pull requests did in production, in a pane beside the chat.
+- Show how the repository's pull requests did in production, in a pane beside the chat.
 
 ## Prerequisites
 
@@ -85,30 +85,10 @@ production, the data that shows it, and how long after the deploy the result is 
 A repository Packrat doesn't verify, or a Packrat the CLI can't reach, never blocks a pull request.
 Declaring checks needs `packrat` 0.1.4 or later.
 
-### Packrat pane
+### PR Verifications pane
 
-Type `/packrat` to open a pane on the **Overview** tab: the items of the analyst's latest daily summary,
-each with its chart drawn as a sparkline:
-
-```
-▸ Overview    PR Verifications    Issues  packrat/production
-Latest summary, 2h ago
-
-◐ Migration pod still records deploys early   ▁█▁█▁        PACKRAT-70
-│ The migrations for #221 and #223 logged their versions
-│ ~30s before any server ran them; #221's deploy job failed.
-│ Next: Have ingest ignore packrat's own migration pod.
-└ Ask  PACKRAT-70  seconds early by deploy
-✓ Pull requests judged by own checks          ▁▁▃▁█▁▁   #219 Worked
-```
-
-Each item is `act` (●), `watch` (◐), `shipped` or `better` (✓). A shipped item is about one pull
-request and wears its verification's mark and state as PR Verifications shows it now, so the two never
-disagree. Select an item to open it. The first `act` or `watch` item opens by itself. Overview needs
-`packrat` 0.1.9 or later.
-
-Click **PR Verifications**, or type `/packrat pulls`, for the repository's recently deployed pull
-requests and how each did in production:
+Type `/packrat` to open a pane that lists the repository's recently deployed pull requests and how
+each did in production:
 
 ```
 Packrat PR Verifications · colorbook/production
@@ -136,11 +116,12 @@ deploy. After that a pending pull request is read every 5 minutes, since its ver
 looks, about once an hour, and one with a verdict and no check still open every 15 minutes. **Refresh** reads
 everything at once.
 
-Click **Issues**, or type `/packrat issues`, for the **Issues** tab: the app's unresolved issues, error issues
+Click **Issues**, press `2` while the pane has focus, or type `/packrat issues`, for the **Issues** tab: the app's unresolved issues, error issues
 and AI-detected ones (marked `AI`), in the order of its Issues page on Packrat:
 
 ```
-  PR Verifications  ▸ Issues  shop/production
+1:  PR Verifications   2: [ Issues ]                         shop/production
+──────────────────────────────────────────────────────────────────────────
 ▲ 1 critical  ▲ 2 high  · 3 unrated
 
 ▲ AI Gift card carts fail to pay                      new · 41 ev · 9 users
@@ -156,7 +137,8 @@ and AI-detected ones (marked `AI`), in the order of its Issues page on Packrat:
 The mark is the severity the analyst's daily summary gave: red `▲` critical, yellow `▲` high, `·` unrated
 and `▽` low. Select an issue for its one-line summary; **Ask**
 puts a `/packrat:ask` prompt in the input and **View issue** opens it on Packrat. The pane reads only the
-tab you are looking at. A `▸` marks the tab you are on.
+tab you are looking at; click **PR Verifications** or press `1` to go back. The tab you are on is drawn in
+reverse.
 
 The pane shows only its latest error. Every error it meets is also kept, newest last, in
 `~/.config/packrat/pane.log`.
@@ -165,7 +147,7 @@ The pane needs:
 
 - The [GitHub CLI](https://cli.github.com) (`gh`), signed in to the repository, to list merged pull
   requests.
-- `packrat` 0.1.2 or later, 0.1.5 or later for the Issues tab, and 0.1.9 or later for the Overview tab. Run `packrat update` if the pane says the
+- `packrat` 0.1.2 or later, and 0.1.5 or later for the Issues tab. Run `packrat update` if the pane says the
   CLI is too old.
 - A Claude Code version that loads plugin modules. The pane is built on Claude Code's plugin module
   API, which is in early access and can change between releases.
@@ -176,3 +158,19 @@ The pane needs:
 | --- | --- |
 | `packrat:ask` | The entry point to Packrat. Answers questions about production through the CLI: pull requests, Packrat links, SQL queries and checks. |
 | `packrat:checks` | Drafts the checks Packrat runs after a pull request deploys. |
+
+## Develop the pane
+
+`script/preview` draws the pane in your terminal from production answers recorded once, so you see a
+change to `hooks/` in about a second, without restarting Claude Code or running a server.
+
+```sh
+script/preview --fetch            # record what packrat and gh answer for ../packrat
+script/preview --width 72         # draw PR Verifications
+script/preview --tab issues       # draw Issues
+script/preview --press pr-227     # press a button by its key first, such as a pull request's row
+```
+
+Run `--fetch` again for newer data. The recordings in `preview/recorded/` hold production data and are
+not committed. The drawing is close to Claude Code's but not identical, so check the pane in Claude
+Code before you ship a change.
