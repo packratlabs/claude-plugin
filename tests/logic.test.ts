@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, isSettled, nextCheck, noChecks, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, isSettled, nextCheck, noChecks, wrap, rereadAfter, summary, sparkline, itemMark, type OverviewItem, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -135,4 +135,19 @@ test('wraps text at spaces so each line can carry the rail', async () => {
   expect(wrap('Checkout times out when the card network is slow', 20)).toEqual(['Checkout times out', 'when the card', 'network is slow'])
   expect(wrap('', 20)).toEqual([])
   expect(wrap('abcdefghij', 4)).toEqual(['abcd'])
+})
+
+test('a sparkline scales each row to the largest and keeps the latest rows that fit', () => {
+  expect(sparkline([0, 5, 10])).toBe('▁▅█')
+  expect(sparkline([0, 0])).toBe('▁▁')
+  expect(sparkline([10, 0, 10], 2)).toBe('▁█')
+})
+
+test("a shipped item wears its verification's mark, so it agrees with PR Verifications", () => {
+  const item = (over: Partial<OverviewItem>): OverviewItem => ({
+    status: 'shipped', title: 't', changed: '', matters: '', evidence: '', next: '', issue: null, pull: null, chart: null, ...over,
+  })
+  const pull = (state: string) => ({ number: 482, title: null, state, label: null, url: null })
+  expect([itemMark(item({ pull: pull('refuted') })), itemMark(item({ pull: pull('pending') })), itemMark(item({ status: 'watch' })), itemMark(item({ status: 'act' }))])
+    .toEqual([{ glyph: '✗', tone: 'error' }, { glyph: '◷', tone: 'suggestion' }, { glyph: '◐', tone: 'warning' }, { glyph: '●', tone: 'error' }])
 })

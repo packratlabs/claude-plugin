@@ -294,3 +294,49 @@ export function issueUrl(issue: Issue, list: { app: string; org?: string }, env:
   const app = `${encodeURIComponent(service)}/${encodeURIComponent(issue.environment || env)}`
   return `${site.replace(/\/+$/, '')}/orgs/${list.org}/apps/${app}/issues/${encodeURIComponent(issue.id)}`
 }
+
+// One answer of `packrat overview --json`: the items of an app's latest daily summary. A shipped item's pull request
+// carries its verification's state now, so the item and PR Verifications always agree.
+export type OverviewItem = {
+  status: 'act' | 'watch' | 'shipped' | 'better' | string
+  title: string
+  changed: string
+  matters: string
+  evidence: string
+  next: string
+  issue: string | null
+  pull: { number: number; title: string | null; state: string | null; label: string | null; url: string | null } | null
+  chart: { kind: string; unit: string; caption: string; rows: [string, number, boolean][] } | null
+}
+export type Overview = {
+  app: string
+  org?: string
+  report: { id: string; subject: string; at: string; from: string; to: string } | null
+  items: OverviewItem[]
+}
+
+const BARS = '▁▂▃▄▅▆▇█'
+export const SPARK_WIDTH = 12
+
+// One bar a row, scaled to the largest; a chart of more rows than fit keeps its latest.
+export function sparkline(values: readonly number[], width = SPARK_WIDTH) {
+  const shown = values.slice(-width)
+  const top = Math.max(0, ...shown)
+  return shown.map(v => BARS[top <= 0 ? 0 : Math.max(0, Math.round((v / top) * (BARS.length - 1)))]).join('')
+}
+
+// An item's mark: a shipped one wears its verification's, so it reads as it does on PR Verifications.
+export function itemMark(item: OverviewItem): { glyph: string; tone: Tone } {
+  if (item.status === 'shipped' && item.pull) {
+    const v = VERDICTS[verdict(item.pull.state)]
+    return { glyph: v.glyph, tone: v.tone }
+  }
+  switch (item.status) {
+    case 'act':
+      return { glyph: '●', tone: 'error' }
+    case 'watch':
+      return { glyph: '◐', tone: 'warning' }
+    default:
+      return { glyph: '✓', tone: 'success' }
+  }
+}

@@ -11,6 +11,19 @@ const shown = {
   }],
 }
 
+const overviewAnswer = {
+  app: 'colorbook/production', org: 'org_abc123',
+  report: { id: 'rep_1', subject: 'Watch (afternoon): deploys recorded early', at: new Date(deployedAt - 2 * 3600_000).toISOString(),
+            from: new Date(deployedAt - 8 * 3600_000).toISOString(), to: new Date(deployedAt - 2 * 3600_000).toISOString() },
+  items: [
+    { status: 'watch', title: 'Migration pod records deploys early', changed: 'Two migrations logged their versions half a minute early.',
+      matters: 'Deploy times read early.', evidence: '31s and 29s early.', next: 'Have ingest ignore the migration pod.', issue: 'COLORBOOK-70', pull: null,
+      chart: { kind: 'bars', unit: 's', caption: 'seconds early by hour', rows: [['2026-11-07 06:00', 0, false], ['2026-11-07 07:00', 31, true]] } },
+    { status: 'shipped', title: 'Palette cached', changed: 'The palette is cached.', matters: '', evidence: '', next: 'Nothing.', issue: null,
+      pull: { number: 560, title: 'Cache the palette', state: 'refuted', label: 'Did not work', url: null }, chart: null },
+  ],
+}
+
 const answer = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
 
 test('a pull request deployed minutes ago draws, with when it deployed', async ($, on) => {
@@ -27,7 +40,7 @@ test('a pull request deployed minutes ago draws, with when it deployed', async (
   })
   on('ui.open', async () => ({ value: undefined }))
 
-  await $.command.run({ command: 'packrat' })
+  await $.command.run({ command: 'packrat', args: 'pulls' })
   await clock.settle()
 
   const pane = await $.ui.mount({
@@ -39,7 +52,7 @@ test('a pull request deployed minutes ago draws, with when it deployed', async (
   expect(drawn).not.toContain('first look')
 })
 
-test('a pane open across a reload starts again by itself, with no /packrat', async ($, on) => {
+test('a pane open across a reload starts again by itself on the Overview, with no /packrat', async ($, on) => {
   const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
   mock.env(on, { HOME: '/home/dev' })
   on('session.root', async () => ({ value: '/repo' }))
@@ -48,6 +61,7 @@ test('a pane open across a reload starts again by itself, with no /packrat', asy
     if (argv.startsWith('gh repo view')) return answer('a/b\n')
     if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
     if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(shown))
+    if (argv.endsWith('overview --json')) return answer(JSON.stringify(overviewAnswer))
     throw new Error(`unexpected ${argv}`)
   })
 
@@ -57,8 +71,37 @@ test('a pane open across a reload starts again by itself, with no /packrat', asy
   })
   await clock.settle()
   const drawn = JSON.stringify(await pane.drawn())
-  expect(drawn).toContain('"deployed ","4m"," ago"')
-  expect(drawn).not.toContain('first look')
+  expect(drawn).toContain('Migration pod records deploys')
+})
+
+test("/packrat opens the Overview: the latest summary's items, the first problem open, a shipped one marked by its verification", async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(shown))
+    if (argv.endsWith('overview --json')) return answer(JSON.stringify(overviewAnswer))
+    throw new Error(`unexpected ${argv}`)
+  })
+  on('ui.open', async () => ({ value: undefined }))
+
+  const said = await $.command.run({ command: 'packrat' })
+  await clock.settle()
+
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat', isFocused: true, bodyColumns: 64, placement: 'dock' } as never,
+  })
+  const drawn = JSON.stringify(await pane.drawn())
+  expect(JSON.stringify(said)).toContain('Opened the Overview')
+  for (const text of ['Latest summary', '2h', 'Migration pod records deploys early', '▁█', 'COLORBOOK-70', 'Two migrations logged', 'Next: Have ingest',
+    'seconds early by hour', '✗', 'Palette cached', '#560 Did not work']) {
+    expect(drawn).toContain(text)
+  }
+  expect(drawn).not.toContain('The palette is cached.')
 })
 
 test('/packrat issues opens the Issues tab, asking for the app the pull requests named', async ($, on) => {
@@ -116,7 +159,7 @@ test('a pane behind another tab asks Packrat nothing, and an old pending pull re
   let isShown = true
   on('ui.panes', async () => ({ value: [{ id: 'packrat', title: 'Packrat', isShown, isFocused: isShown, isPlaced: true }] }))
 
-  await $.command.run({ command: 'packrat' })
+  await $.command.run({ command: 'packrat', args: 'pulls' })
   await clock.settle()
   const first = reads
 
