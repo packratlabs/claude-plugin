@@ -53,6 +53,7 @@ let isRefreshing = false
 let lastError: string | null = null
 const expanded = new Set<number>()
 let tab: 'pulls' | 'issues' = 'pulls'
+const TABS: [typeof tab, string][] = [['pulls', 'PR Verifications'], ['issues', 'Issues']]
 let issues: IssueList | null = null
 let issuesCheckedAt = 0
 let isRefreshingIssues = false
@@ -380,15 +381,23 @@ export const register: Register = (on, options) => {
         </Box>
       )
 
+      // Claude Code draws each tab as `N:  label `, and the row sets them and the app name two apart.
+      const app = knownApp() ?? repo ?? ''
+      const tabsWidth = TABS.reduce((n, [, label]) => n + label.length + 5, TABS.length * 2)
+
       const isBusy = tab === 'issues' ? isRefreshingIssues : isRefreshing
 
       return (
         <Box flexDirection="column">
           <Box flexDirection="row" gap={2}>
-            <Button key="tab-pulls" plain dimColor={tab !== 'pulls'} onPress={() => void show($, 'pulls')}><Text bold={tab === 'pulls'}>{tab === 'pulls' ? '▸ ' : '  '}PR Verifications</Text></Button>
-            <Button key="tab-issues" plain dimColor={tab !== 'issues'} onPress={() => void show($, 'issues')}><Text bold={tab === 'issues'}>{tab === 'issues' ? '▸ ' : '  '}Issues</Text></Button>
-            <Text dimColor wrap="truncate-end">{knownApp() ?? repo}</Text>
+            {TABS.map(([key, label], i) => (
+              <Button key={`tab-${key}`} plain hotkey={String(i + 1)} onPress={() => void show($, key)}>
+                {tab === key ? <Text backgroundColor="suggestion" color="inverseText" bold> {label} </Text> : <Text dimColor> {label} </Text>}
+              </Button>
+            ))}
+            <Text dimColor wrap="truncate-end">{' '.repeat(Math.max(0, width - tabsWidth - app.length))}{app}</Text>
           </Box>
+          <Text dimColor>{'─'.repeat(width)}</Text>
           {tab === 'issues' ? issuesBody : pullsBody}
           <Box marginTop={1} flexDirection="row" gap={1}>
             <Button key="refresh" label="Refresh" hotkey="r" onPress={() => {

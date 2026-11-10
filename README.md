@@ -116,11 +116,12 @@ deploy. After that a pending pull request is read every 5 minutes, since its ver
 looks, about once an hour, and one with a verdict and no check still open every 15 minutes. **Refresh** reads
 everything at once.
 
-Click **Issues**, or type `/packrat issues`, for the **Issues** tab: the app's unresolved issues, error issues
+Click **Issues**, press `2` while the pane has focus, or type `/packrat issues`, for the **Issues** tab: the app's unresolved issues, error issues
 and AI-detected ones (marked `AI`), in the order of its Issues page on Packrat:
 
 ```
-  PR Verifications  ▸ Issues  shop/production
+1:  PR Verifications   2: [ Issues ]                         shop/production
+──────────────────────────────────────────────────────────────────────────
 ▲ 1 critical  ▲ 2 high  · 3 unrated
 
 ▲ AI Gift card carts fail to pay                      new · 41 ev · 9 users
@@ -136,7 +137,8 @@ and AI-detected ones (marked `AI`), in the order of its Issues page on Packrat:
 The mark is the severity the analyst's daily summary gave: red `▲` critical, yellow `▲` high, `·` unrated
 and `▽` low. Select an issue for its one-line summary; **Ask**
 puts a `/packrat:ask` prompt in the input and **View issue** opens it on Packrat. The pane reads only the
-tab you are looking at; click **PR Verifications** to go back. A `▸` marks the tab you are on.
+tab you are looking at; click **PR Verifications** or press `1` to go back. The tab you are on is drawn in
+reverse.
 
 The pane shows only its latest error. Every error it meets is also kept, newest last, in
 `~/.config/packrat/pane.log`.
@@ -156,3 +158,19 @@ The pane needs:
 | --- | --- |
 | `packrat:ask` | The entry point to Packrat. Answers questions about production through the CLI: pull requests, Packrat links, SQL queries and checks. |
 | `packrat:checks` | Drafts the checks Packrat runs after a pull request deploys. |
+
+## Develop the pane
+
+`script/preview` draws the pane in your terminal from production answers recorded once, so you see a
+change to `hooks/` in about a second, without restarting Claude Code or running a server.
+
+```sh
+script/preview --fetch            # record what packrat and gh answer for ../packrat
+script/preview --width 72         # draw PR Verifications
+script/preview --tab issues       # draw Issues
+script/preview --press pr-227     # press a button by its key first, such as a pull request's row
+```
+
+Run `--fetch` again for newer data. The recordings in `preview/recorded/` hold production data and are
+not committed. The drawing is close to Claude Code's but not identical, so check the pane in Claude
+Code before you ship a change.
