@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Draws the pane in this terminal from production answers recorded once, so a change to hooks/ shows in a second
+# with no restart of Claude Code and no server of your own.
+#
+#   script/preview --fetch [--repo DIR]      record what packrat and gh answer for DIR (default ../packrat)
+#   script/preview [--width N] [--tab T] [--press KEY]...
+#
+# --tab is what follows /packrat: empty for Overview, pulls or issues. --press presses a button by its key, such as
+# ov-item-row-1, before drawing; pass it again for more. The recordings in preview/recorded/ hold production data
+# and are not committed.
+set -euo pipefail
+
+here="$(cd "$(dirname "$0")/.." && pwd)"
+recorded="$here/preview/recorded"
+repo_dir="$here/../packrat"
+width=72
+tab=""
+press=()
+fetch=false
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --fetch) fetch=true ;;
+    --repo) repo_dir="$2"; shift ;;
+    --width) width="$2"; shift ;;
+    --tab) tab="$2"; shift ;;
+    --press) press+=("$2"); shift ;;
+    -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "script/preview: unknown argument $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+if $fetch; then
+  mkdir -p "$recorded/pulls"
+  cd "$repo_dir"
+  gh repo view --json nameWithOwner -q .nameWithOwner > "$recorded/repo"
+  gh pr list --state merged --limit 12 --json number,title,url,mergedAt > "$recorded/merged.json"
+  packrat overview --json > "$recorded/overview.json"
+  app="$(jq -r .app "$recorded/overview.json")"
+  packrat issues --json --limit 25 --app "${app%%/*}" --environment "${app##*/}" > "$recorded/issues.json"
+  rm -f "$recorded"/pulls/*.json
+  for number in $(jq -r '.[].number' "$recorded/merged.json"); do
+    packrat pr show "$number" --json > "$recorded/pulls/$number.json" 2>/dev/null || rm -f "$recorded/pulls/$number.json"
+  done
+  date +%s > "$recorded/at"
+  echo "Recorded $(jq '.feed | length' "$recorded/overview.json") feed items, $(jq '.issues | length' "$recorded/issues.json") issues and $(ls "$recorded/pulls" | wc -l | tr -d ' ') pull requests for $app."
+  exit 0
+fi
+
+if [ ! -f "$recorded/overview.json" ]; then
+  echo "script/preview: nothing recorded yet. Run script/preview --fetch first." >&2
+  exit 1
+fi
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+cp -R "$here/.claude-plugin" "$here/hooks" "$work/"
+[ -d "$here/bin" ] && cp -R "$here/bin" "$work/"
+mkdir -p "$work/tests"
+cp "$here/preview/pane.preview.tsx" "$work/tests/preview.test.tsx"
+cp "$here/preview/render.ts" "$work/tests/render.ts"
+{
+  printf 'export const recorded = {\n'
+  printf '  at: %s000,\n' "$(cat "$recorded/at")"
+  printf '  repo: %s,\n' "$(jq -Rs . < "$recorded/repo" | tr -d '\n' | sed 's/\\n"$/"/')"
+  printf '  merged: %s,\n' "$(jq -c . "$recorded/merged.json" | jq -Rs .)"
+  printf '  overview: %s,\n' "$(jq -c . "$recorded/overview.json" | jq -Rs .)"
+  printf '  issues: %s,\n' "$(jq -c . "$recorded/issues.json" | jq -Rs .)"
+  printf '  pulls: {\n'
+  for file in "$recorded"/pulls/*.json; do
+    [ -f "$file" ] && printf '    "%s": %s,\n' "$(basename "$file" .json)" "$(jq -c . "$file" | jq -Rs .)"
+  done
+  printf '  } as Record<string, string>,\n'
+  printf '  width: %s,\n' "$width"
+  printf '  tab: %s,\n' "$(printf '%s' "$tab" | jq -Rs .)"
+  printf '  press: %s as string[],\n' "$(printf '%s\n' "${press[@]+"${press[@]}"}" | jq -Rsc 'split("\n") | map(select(. != ""))')"
+  printf '}\n'
+} > "$work/tests/recorded.ts"
+
+output="$(claude plugin test "$work" 2>&1)" || true
+if printf '%s' "$output" | grep -q '<<<preview'; then
+  printf '%s\n' "$output" | sed -n '/<<<preview/,/preview>>>/p' | sed '1d;$d' | perl -pe 's/\\u001b/\e/g'
+else
+  printf '%s\n' "$output" >&2
+  exit 1
+fi

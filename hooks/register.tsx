@@ -465,7 +465,7 @@ export const register: Register = (on, options) => {
                   ? plainParagraphs(item.body).map(text => ({ label: null, text }))
                   : parts.map(([label, text]) => ({ label: label!, text: text! }))
                 const lines = [
-                  ...(item.chart?.caption ? [{ text: item.chart.caption, dim: true }] : []),
+                  ...(item.chart?.caption ? wrap(item.chart.caption, width - 2).map(text => ({ text, dim: true })) : []),
                   ...blocks.flatMap(({ label, text }) => [
                     { text: '', dim: false }, ...(label ? [{ text: label, dim: true }] : []), ...wrap(text, width - 2).map(line => ({ text: line, dim: false })),
                   ]),
