@@ -97,7 +97,7 @@ test("/packrat opens the Overview: the latest summary's items, the first problem
   })
   const drawn = JSON.stringify(await pane.drawn())
   expect(JSON.stringify(said)).toContain('Opened the Overview')
-  for (const text of ['Latest summary', '2h', 'Migration pod records deploys early', '▁█', 'COLORBOOK-70', 'Two migrations logged', 'Next: Have ingest',
+  for (const text of ['Latest summary', '2h', 'Migration pod records deploys early', '▁█', 'COLORBOOK-70', 'What changed', 'Two migrations logged', 'Why it matters', 'Evidence', '"Next"', 'Have ingest ignore',
     'seconds early by hour', '✗', 'Palette cached', '#560 Did not work']) {
     expect(drawn).toContain(text)
   }

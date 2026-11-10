@@ -445,7 +445,13 @@ export const register: Register = (on, options) => {
                 const spark = item.chart?.kind === 'bars' ? sparkline(item.chart.rows.map(row => Number(row[1]))) : ''
                 const tag = item.pull ? `#${item.pull.number} ${item.pull.label ?? ''}`.trimEnd() : item.issue ?? ''
                 const titleWidth = Math.max(10, width - 2 - (spark ? SPARK_WIDTH + 1 : 0) - (tag ? tag.length + 1 : 0))
-                const lines = [item.changed, item.matters, item.evidence, item.next && `Next: ${item.next}`].filter(Boolean)
+                // As the mail lays an item out: the chart's caption, then each part under its own dim label, a blank line between.
+                const parts = [['What changed', item.changed], ['Why it matters', item.matters], ['Evidence', item.evidence], ['Next', item.next]]
+                  .filter(([, text]) => text)
+                const lines = [
+                  ...(item.chart?.caption ? [{ text: item.chart.caption, dim: true }] : []),
+                  ...parts.flatMap(([label, text]) => [{ text: '', dim: false }, { text: label!, dim: true }, ...wrap(text!, width - 2).map(line => ({ text: line, dim: false }))]),
+                ].filter((line, i) => i > 0 || line.text !== '')
                 return (
                   <Box key={`ov-item-${index}`} flexDirection="column">
                     <Button key={`ov-item-row-${index}`} plain onPress={() => flipOverview(key)}>
@@ -455,15 +461,14 @@ export const register: Register = (on, options) => {
                     </Button>
                     {isOpen && (
                       <Box flexDirection="column" marginBottom={1}>
-                        {lines.flatMap(text => wrap(text, width - 2)).map((line, i) => (
-                          <Text key={`ov-item-${index}-line-${i}`}><Text dimColor>│ </Text>{line}</Text>
+                        {lines.map((line, i) => (
+                          <Text key={`ov-item-${index}-line-${i}`}><Text dimColor>│ </Text><Text dimColor={line.dim}>{line.text}</Text></Text>
                         ))}
                         <Box flexDirection="row" gap={1}>
                           <Text dimColor>└</Text>
                           <Button key={`ov-ask-${index}`} label="Ask" dimColor onPress={() => askItem(item)} />
                           {item.issue && ovBase && <Button key={`ov-issue-${index}`} label={item.issue} dimColor onPress={() => openPr(`${ovBase}/issues/${encodeURIComponent(item.issue!)}`)} />}
                           {item.pull && ovBase && <Button key={`ov-pull-${index}`} label="View PR" dimColor onPress={() => openPr(`${ovBase}/pulls/${item.pull!.number}`)} />}
-                          {item.chart?.caption && <Text dimColor>{item.chart.caption}</Text>}
                         </Box>
                       </Box>
                     )}

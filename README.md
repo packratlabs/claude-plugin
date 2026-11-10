@@ -95,10 +95,21 @@ each with its chart drawn as a sparkline:
 Latest summary, 2h ago
 
 ◐ Migration pod still records deploys early   ▁█▁█▁        PACKRAT-70
+│ Seconds between the migration pod's log and the first server
+│
+│ What changed
 │ The migrations for #221 and #223 logged their versions
-│ ~30s before any server ran them; #221's deploy job failed.
-│ Next: Have ingest ignore packrat's own migration pod.
-└ Ask  PACKRAT-70  seconds early by deploy
+│ ~30s before any server ran them.
+│
+│ Why it matters
+│ Deploy times read half a minute early.
+│
+│ Evidence
+│ 31s and 29s early; #221's deploy job failed.
+│
+│ Next
+│ Have ingest ignore packrat's own migration pod.
+└ Ask  PACKRAT-70
 ✓ Pull requests judged by own checks          ▁▁▃▁█▁▁   #219 Worked
 ```
 
