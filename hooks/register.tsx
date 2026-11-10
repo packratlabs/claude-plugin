@@ -3,11 +3,6 @@ import type { Hook, Register } from 'claude-code'
 import {
   type Check,
   type IssueList,
-  type Overview,
-  type OverviewItem,
-  SPARK_WIDTH,
-  itemMark,
-  sparkline,
   type Merged,
   type Pr,
   type PullAnswer,
@@ -57,13 +52,7 @@ let checkedAt = 0
 let isRefreshing = false
 let lastError: string | null = null
 const expanded = new Set<number>()
-let tab: 'overview' | 'pulls' | 'issues' = 'overview'
-let overview: Overview | null = null
-let overviewCheckedAt = 0
-let isRefreshingOverview = false
-let overviewError: string | null = null
-// Items on the Overview opened or closed by a press: the first act or watch item starts open, every other one closed.
-const flippedOverview = new Set<string>()
+let tab: 'pulls' | 'issues' = 'pulls'
 let issues: IssueList | null = null
 let issuesCheckedAt = 0
 let isRefreshingIssues = false
@@ -195,31 +184,7 @@ async function refreshIssues($: Api) {
   }
 }
 
-async function refreshOverview($: Api) {
-  if (repo === null || isRefreshingOverview) return
-  isRefreshingOverview = true
-  $.ui.invalidate('ui.render')
-  try {
-    const read = await $.process.run([cli, 'overview', '--json'], { cwd: root, timeoutMs: 45_000 })
-    if (read.exitCode !== 0) {
-      const said = read.stderr.trim().split('\n')[0] ?? `exit ${read.exitCode}`
-      overviewError = said.includes('is not a packrat command') ? 'This packrat CLI is too old to show the overview. Run packrat update.' : `${cli} overview: ${said}`
-      void log($, overviewError)
-      return
-    }
-    overview = JSON.parse(read.stdout) as Overview
-    overviewError = null
-    overviewCheckedAt = await $.clock.now()
-  } catch (error) {
-    overviewError = `overview refresh failed: ${String(error)}`
-    void log($, overviewError)
-  } finally {
-    isRefreshingOverview = false
-    $.ui.invalidate('ui.render')
-  }
-}
-
-const refreshShown = ($: Api) => (tab === 'issues' ? refreshIssues($) : tab === 'overview' ? refreshOverview($) : refresh($))
+const refreshShown = ($: Api) => (tab === 'issues' ? refreshIssues($) : refresh($))
 
 // A pane behind another tab, or closed, asks Packrat nothing; it reads again when it is drawn.
 async function isShown($: Api) {
@@ -234,7 +199,6 @@ async function show($: Api, next: typeof tab) {
   tab = next
   $.ui.invalidate('ui.render')
   if (next === 'issues' && (issues === null || (await $.clock.now()) - issuesCheckedAt >= POLL_MS)) void refreshIssues($)
-  if (next === 'overview' && (overview === null || (await $.clock.now()) - overviewCheckedAt >= POLL_MS)) void refreshOverview($)
 }
 
 // Run by /packrat, and by an open pane that draws after a reload (/reload-plugins or an update), which starts the
@@ -255,7 +219,6 @@ async function start($: Api) {
     })
     isStarted = true
     void refresh($)
-    if (tab === 'overview') void refreshOverview($)
   } finally {
     isStarting = false
     $.ui.invalidate('ui.render')
@@ -268,7 +231,7 @@ export const register: Register = (on, options) => {
 
   // Nothing runs until /packrat: a session that never opens the pane asks GitHub and Packrat nothing.
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'packrat', description: "Show this repository's app in production: its last 24 hours, its pull requests and its issues", argumentHint: '[pulls|issues]' })
+    await $.command.register({ name: 'packrat', description: "Show how this repository's pull requests did in production, and its issues", argumentHint: '[issues]' })
 
     return next(e)
   })
@@ -277,15 +240,15 @@ export const register: Register = (on, options) => {
     try {
       await start($)
       if (repo === null) return { text: 'Packrat: this directory is not a GitHub repository that gh can see.' }
-      const next = /^\s*issues?\b/i.test(e.args) ? 'issues' : /^\s*(pulls?|prs?|verifications?)\b/i.test(e.args) ? 'pulls' : 'overview'
+      const next = /^\s*issues?\b/i.test(e.args) ? 'issues' : 'pulls'
       await $.ui.open({ id: PANE, title: 'Packrat', focus: true })
       await show($, next)
       if (next === 'pulls') void refresh($)
 
-      return { text: `Opened ${{ overview: 'the Overview', issues: 'Issues', pulls: 'PR Verifications' }[next]} for ${repo}.` }
+      return { text: `Opened ${next === 'issues' ? 'Issues' : 'PR Verifications'} for ${repo}.` }
     } catch (error) {
       void log($, `open failed: ${String(error)}`)
-      return { text: `Packrat could not open its pane: ${String(error)}` }
+      return { text: `Packrat could not open PR Verifications: ${String(error)}` }
     }
   })
 
@@ -417,75 +380,16 @@ export const register: Register = (on, options) => {
         </Box>
       )
 
-      const flipOverview = (key: string) => {
-        if (flippedOverview.has(key)) flippedOverview.delete(key)
-        else flippedOverview.add(key)
-        $.ui.invalidate('ui.render')
-      }
-      const ov = overview
-      const ovBase = ov && ov.org ? `${site.replace(/\/+$/, '')}/orgs/${ov.org}/apps/${ov.app.split('/').map(encodeURIComponent).join('/')}` : null
-      const firstProblem = ov?.items.findIndex(item => item.status === 'act' || item.status === 'watch') ?? -1
-      const askItem = (item: OverviewItem) =>
-        item.pull ? ask(item.pull.number) : item.issue ? askIssue(item.issue) : void $.prompt.fill({ text: `/packrat:ask look into "${item.title}"`, mode: 'replace' })
-
-      const overviewBody = (
-        <Box flexDirection="column">
-          {overviewError !== null && <Text color="error" wrap="truncate-end">{overviewError}</Text>}
-          {ov === null && overviewError === null && <Text dimColor>Reading Packrat…</Text>}
-          {ov !== null && ov.report === null && <Text dimColor>No summary yet. The analyst writes one at 06:00, 12:00 and 18:00 Denver time.</Text>}
-          {ov !== null && ov.report !== null && (
-            <Box flexDirection="column">
-              <Text dimColor>Latest summary, {ago(now - Date.parse(ov.report.at))} ago</Text>
-              <Box marginTop={1} />
-              {ov.items.length === 0 && <Text dimColor>Nothing worth your minute in it.</Text>}
-              {ov.items.map((item, index) => {
-                const key = `item:${index}:${item.title}`
-                const isOpen = flippedOverview.has(key) !== (index === firstProblem)
-                const mark = itemMark(item)
-                const spark = item.chart?.kind === 'bars' ? sparkline(item.chart.rows.map(row => Number(row[1]))) : ''
-                const tag = item.pull ? `#${item.pull.number} ${item.pull.label ?? ''}`.trimEnd() : item.issue ?? ''
-                const titleWidth = Math.max(10, width - 2 - (spark ? SPARK_WIDTH + 1 : 0) - (tag ? tag.length + 1 : 0))
-                const lines = [item.changed, item.matters, item.evidence, item.next && `Next: ${item.next}`].filter(Boolean)
-                return (
-                  <Box key={`ov-item-${index}`} flexDirection="column">
-                    <Button key={`ov-item-row-${index}`} plain onPress={() => flipOverview(key)}>
-                      <Text color={mark.tone}>{mark.glyph}</Text> <Text bold={isOpen}>{fit(item.title.replace(/\s+/g, ' '), titleWidth)}</Text>
-                      {spark && <Text color={mark.tone}> {spark.padEnd(SPARK_WIDTH)}</Text>}
-                      {tag && <Text dimColor> {tag}</Text>}
-                    </Button>
-                    {isOpen && (
-                      <Box flexDirection="column" marginBottom={1}>
-                        {lines.flatMap(text => wrap(text, width - 2)).map((line, i) => (
-                          <Text key={`ov-item-${index}-line-${i}`}><Text dimColor>│ </Text>{line}</Text>
-                        ))}
-                        <Box flexDirection="row" gap={1}>
-                          <Text dimColor>└</Text>
-                          <Button key={`ov-ask-${index}`} label="Ask" dimColor onPress={() => askItem(item)} />
-                          {item.issue && ovBase && <Button key={`ov-issue-${index}`} label={item.issue} dimColor onPress={() => openPr(`${ovBase}/issues/${encodeURIComponent(item.issue!)}`)} />}
-                          {item.pull && ovBase && <Button key={`ov-pull-${index}`} label="View PR" dimColor onPress={() => openPr(`${ovBase}/pulls/${item.pull!.number}`)} />}
-                          {item.chart?.caption && <Text dimColor>{item.chart.caption}</Text>}
-                        </Box>
-                      </Box>
-                    )}
-                  </Box>
-                )
-              })}
-            </Box>
-          )}
-        </Box>
-      )
-
-      const isBusy = tab === 'issues' ? isRefreshingIssues : tab === 'overview' ? isRefreshingOverview : isRefreshing
+      const isBusy = tab === 'issues' ? isRefreshingIssues : isRefreshing
 
       return (
         <Box flexDirection="column">
           <Box flexDirection="row" gap={2}>
-            <Button key="tab-overview" plain dimColor={tab !== 'overview'} onPress={() => void show($, 'overview')}><Text bold={tab === 'overview'}>{tab === 'overview' ? '▸ ' : '  '}Overview</Text></Button>
             <Button key="tab-pulls" plain dimColor={tab !== 'pulls'} onPress={() => void show($, 'pulls')}><Text bold={tab === 'pulls'}>{tab === 'pulls' ? '▸ ' : '  '}PR Verifications</Text></Button>
             <Button key="tab-issues" plain dimColor={tab !== 'issues'} onPress={() => void show($, 'issues')}><Text bold={tab === 'issues'}>{tab === 'issues' ? '▸ ' : '  '}Issues</Text></Button>
             <Text dimColor wrap="truncate-end">{knownApp() ?? repo}</Text>
           </Box>
-          {tab === 'issues' ? issuesBody : tab === 'overview' ? overviewBody : pullsBody}
+          {tab === 'issues' ? issuesBody : pullsBody}
           <Box marginTop={1} flexDirection="row" gap={1}>
             <Button key="refresh" label="Refresh" hotkey="r" onPress={() => {
               kept.clear()
