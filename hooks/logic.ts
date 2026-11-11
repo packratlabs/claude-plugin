@@ -15,6 +15,12 @@ export type Check = {
   accepted?: string | null
   source: string | null
   runs: Run[] | null
+  // A rule check runs every five minutes until due_at, the end of its window. Older servers send none of these.
+  kind?: string | null
+  seen?: number | null
+  min_seen?: number | null
+  // 'failed' or 'broken' while it waits for the analyst to review it.
+  review?: string | null
 }
 
 export type Deploy = { deployed_at: string; verdict: string | null }
@@ -132,6 +138,8 @@ export function checkName(check: Check) {
 
 export function checkGlyph(check: Check): { glyph: string; tone: Tone } {
   if (isExcused(check)) return { glyph: '⊘', tone: 'subtle' }
+  // A rule check that failed is open until the analyst reviews it, and is shown as pending until then.
+  if (check.kind && check.closed_at === null) return { glyph: VERDICTS.pending.glyph, tone: VERDICTS.pending.tone }
   if (isClosedUnjudged(check)) return { glyph: '•', tone: 'subtle' }
   switch (check.result) {
     case 'passed':
@@ -181,6 +189,7 @@ export function day(iso: string) {
 }
 
 export function due(check: Check, now: number) {
+  if (check.kind) return progress(check)
   const runs = check.runs_at ?? check.due_at
   const at = Date.parse(runs)
   if (Number.isNaN(at)) return ''
@@ -189,9 +198,17 @@ export function due(check: Check, now: number) {
   return day(runs)
 }
 
-// When the first open check of any pull request listed runs: '' when none is open.
+// How far an open rule check has got: '40/200' seen of its min_seen, or that it waits for review.
+export function progress(check: Check) {
+  if (check.review) return 'to review'
+  if (check.seen === null || check.seen === undefined) return 'running'
+  return `${check.seen}/${check.min_seen ?? 1}`
+}
+
+// When the first open check of any pull request listed runs: '' when none is open. A rule check runs every five
+// minutes, so only checks from before rules have a time to wait for.
 export function nextCheck(prs: readonly Pr[], now: number) {
-  const open = prs.flatMap(pr => pr.checks).filter(check => check.closed_at === null)
+  const open = prs.flatMap(pr => pr.checks).filter(check => check.closed_at === null && !check.kind)
   if (open.length === 0) return ''
   const first = open.reduce((a, b) => (Date.parse(b.runs_at ?? b.due_at) < Date.parse(a.runs_at ?? a.due_at) ? b : a))
   return due(first, now)

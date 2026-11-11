@@ -7,6 +7,9 @@ set -euo pipefail
 REPO="packratlabs/packrat-cli"
 
 here="$(cd "$(dirname "$0")" && pwd)"
+# The CLI names the plugin in its User-Agent, so Packrat can tell this pane's requests by version.
+plugin_version=$(sed -nE 's/^ *"version": *"([^"]+)".*/\1/p' "$here/../.claude-plugin/plugin.json" 2>/dev/null | head -n 1)
+[ -n "$plugin_version" ] && export PACKRAT_PLUGIN_VERSION="$plugin_version"
 IFS=: read -r -a dirs <<< "${PATH:-}"
 for dir in "${dirs[@]}"; do
   [ -n "$dir" ] && [ "$(cd "$dir" 2>/dev/null && pwd)" != "$here" ] && [ -x "$dir/packrat" ] && exec "$dir/packrat" "$@"

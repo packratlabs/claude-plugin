@@ -40,7 +40,7 @@ deny() {
   exit 0
 }
 
-shape='a JSON list of checks, [{"title": "what it verifies", "what": "what must be true in production, and the span, attribute, log line or SQL that shows it", "after": "1h"}], where after is how long after the deploy it can first pass (10m to 30d), or {"none": "why production cannot show this change"}'
+shape='a JSON list of checks, [{"title": "what it verifies", "claim": "what must be true in production", "sql": "one statement returning one row with a seen column", "pass_when": "matched >= 1"}], with fail_when, min_seen, window and at_end as the packrat:checks skill says, or {"none": "why production cannot show this change"}'
 
 if [ "$event" = "PreToolUse" ]; then
   if [ -f "$draft" ]; then
