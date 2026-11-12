@@ -201,9 +201,9 @@ export function due(check: Check, now: number) {
   return day(runs)
 }
 
-// An open rule check is pending until it closes, unless it waits for review.
+// An open rule check says nothing beside its pending glyph, unless it waits for review.
 export function progress(check: Check) {
-  return check.review ? 'to review' : 'pending'
+  return check.review ? 'to review' : ''
 }
 
 // The widest a check's time can be: 'in 14h 04m'.
