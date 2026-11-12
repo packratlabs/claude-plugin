@@ -15,7 +15,7 @@ import {
   wrap,
   deployed,
   fit,
-  noChecks,
+  NO_CHECKS,
   rereadAfter,
   isLive,
   issueDetails,
@@ -34,12 +34,6 @@ type Api = Parameters<Hook<'session.start'>>[0]
 const PANE = 'packrat'
 const POLL_MS = 60_000
 const ISSUES_LISTED = 25
-const NO_CHECKS: Record<string, string> = {
-  '': 'No deploy recorded yet.',
-  not_observable: 'Nothing in production can show whether it worked.',
-  archived: 'Its verification was archived.',
-}
-
 // Module state, as pr-monitor keeps it: a reload starts it over and the next poll fills it again.
 let root = ''
 let repo: string | null = null
@@ -312,7 +306,7 @@ export const register: Register = (on, options) => {
                 </Button>
                 {isOpen && (
                   <Box flexDirection="column" marginBottom={1}>
-                    {pr.checks.length === 0 && <Text dimColor>│ {noChecks(pr, NO_CHECKS)}</Text>}
+                    {pr.checks.length === 0 && <Text dimColor>│ {NO_CHECKS}</Text>}
                     {checkLines(pr)}
                     <Box flexDirection="row" gap={1}>
                       <Text dimColor>└</Text>
