@@ -25,11 +25,11 @@ export type Check = {
 
 export type Deploy = { deployed_at: string; verdict: string | null }
 
-export type PullAnswer = { app: string; org?: string; pull: number; state: string | null; deploys: Deploy[]; checks: Check[]; none?: string | null }
+export type PullAnswer = { app: string; org?: string; pull: number; state: string | null; deploys: Deploy[]; checks: Check[] }
 
 export type Merged = { number: number; title: string; url: string; mergedAt: string }
 
-export type Pr = Merged & { app: string | null; org: string | null; state: string | null; deployedAt: number | null; checks: Check[]; none: string | null }
+export type Pr = Merged & { app: string | null; org: string | null; state: string | null; deployedAt: number | null; checks: Check[] }
 
 export type Verdict = 'worked' | 'didnt' | 'partly' | 'pending' | 'none'
 export type Tone = 'success' | 'error' | 'warning' | 'suggestion' | 'subtle'
@@ -122,7 +122,7 @@ export function summary(prs: readonly Pr[]) {
 
 export function toPr(merged: Merged, answer: PullAnswer | null): Pr {
   const first = answer?.deploys.map(d => Date.parse(d.deployed_at)).filter(t => !Number.isNaN(t)).sort((a, b) => a - b)[0]
-  return { ...merged, app: answer?.app ?? null, org: answer?.org ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [], none: answer?.none ?? null }
+  return { ...merged, app: answer?.app ?? null, org: answer?.org ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [] }
 }
 
 // Packrat has a page for a pull request only once a recorded deploy shipped it; until then it has nothing to verify.
@@ -220,10 +220,7 @@ export function verificationUrl(pr: Pr, site: string) {
   return `${site.replace(/\/+$/, '')}/orgs/${org}/apps/${app}/pulls/${pr.number}`
 }
 
-// What the pane says of a pull request with no checks: why its author declared none, or what its state says.
-export function noChecks(pr: Pr, byState: Record<string, string>) {
-  return pr.none ? `No checks: ${pr.none}` : `No checks. ${byState[pr.state ?? ''] ?? 'Not judged yet.'}`
-}
+export const NO_CHECKS = 'No checks.'
 
 // One row of `packrat issues --json`: an error issue, or one the analyst raised (`kind` `detected`).
 export type Issue = {
