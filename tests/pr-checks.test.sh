@@ -15,7 +15,7 @@ setup() {
 echo "\$*" >> "$dir/asked"
 [ -f "$dir/unwatched" ] && { echo "no app is connected" >&2; exit 3; }
 file=\$(sed -n 's/.*--file \([^ ]*\).*/\1/p' <<<"\$*"); if [ "\$file" = - ]; then body=\$(cat); else body=\$(cat "\$file"); fi
-[[ "\$body" == *bad* ]] && { echo "packrat pr checks set: https://query.packrat.sh answered 422: check 1: after is wrong." >&2; exit 1; }
+[[ "\$body" == *bad* ]] && { echo "packrat pr checks set: https://query.packrat.sh answered 422: check 1: window is wrong." >&2; exit 1; }
 echo "Declared for \$*"
 FAKE
   chmod +x "$cli"
@@ -31,14 +31,14 @@ out=$(run PreToolUse "git push -u origin cart-cache && $open --title Cache --bod
 expect "no draft stops the pull request" "$out" '"permissionDecision": "deny"'
 expect "and says where to write it" "$out" "$draft"
 
-draft_is '[{"title": "Faster", "what": "p95", "after": "1h"}]'
+draft_is '[{"title": "Faster", "claim": "p95", "sql": "SELECT 1 AS seen", "pass_when": "seen > 0"}]'
 expect_empty "an accepted draft lets it through" "$(run PreToolUse "$open --fill")"
 expect "after a dry run" "$(cat "$dir/asked")" "pr checks set --dry-run --file $draft"
 
 draft_is bad
 out=$(run PreToolUse "$open --fill")
 expect "a refused draft stops it" "$out" '"permissionDecision": "deny"'
-expect "and says what to fix" "$out" "check 1: after is wrong."
+expect "and says what to fix" "$out" "check 1: window is wrong."
 
 setup
 expect_empty "a commit message is not a pull request" "$(run PreToolUse "git commit -m \"explain why $open needs a draft\"")"
@@ -46,7 +46,7 @@ expect_empty "git checkout -b is not a body" "$(run PreToolUse "git checkout -b 
 expect_empty "--web is let through" "$(run PreToolUse "$open --web")"
 expect_empty "and none of them asked Packrat" "$(cat "$dir/asked" 2>/dev/null)"
 
-draft_is '[{"title": "Faster", "what": "p95", "after": "1h"}]'
+draft_is '[{"title": "Faster", "claim": "p95", "sql": "SELECT 1 AS seen", "pass_when": "seen > 0"}]'
 out=$(run PostToolUse "$open --fill" $'https://github.com/acme/shop/pull/482\n')
 expect "the draft is declared under the new number" "$(cat "$dir/asked")" "pr checks set https://github.com/acme/shop/pull/482 --file $draft"
 expect "and Claude hears it" "$out" "Packrat: Declared for"
@@ -72,7 +72,7 @@ expect_empty "without asking Packrat" "$(cat "$dir/asked" 2>/dev/null)"
 expect "-R naming this repository still wants a draft" "$(run PreToolUse "$open --repo Acme/Shop --fill")" '"permissionDecision": "deny"'
 
 setup
-draft_is '[{"title": "Faster", "what": "p95", "after": "1h"}]'
+draft_is '[{"title": "Faster", "claim": "p95", "sql": "SELECT 1 AS seen", "pass_when": "seen > 0"}]'
 echo cart-cache > "$dir/head"; git -C "$dir" checkout -q -b main
 out=$(run PostToolUse "$open --fill && gh pr merge --merge && git checkout main" 'https://github.com/acme/shop/pull/483')
 expect "a command that left the branch still declares that branch's draft" "$(cat "$dir/asked")" "pr checks set https://github.com/acme/shop/pull/483 --file $draft"

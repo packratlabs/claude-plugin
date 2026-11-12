@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, deployed, isLive, isSettled, nextCheck, noChecks, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, progress, deployed, isLive, isSettled, nextCheck, noChecks, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -135,4 +135,18 @@ test('wraps text at spaces so each line can carry the rail', async () => {
   expect(wrap('Checkout times out when the card network is slow', 20)).toEqual(['Checkout times out', 'when the card', 'network is slow'])
   expect(wrap('', 20)).toEqual([])
   expect(wrap('abcdefghij', 4)).toEqual(['abcd'])
+})
+
+test('a rule check shows how far it has got, waits for review as pending, and has no time to wait for', async () => {
+  const rule = check({ kind: 'appears', seen: 40, min_seen: 200, due_at: '2026-11-09T12:00:00Z' })
+  expect(progress(rule)).toBe('40/200')
+  expect(checkWhen(rule, now)).toBe('40/200')
+  expect(progress(check({ kind: 'guard', seen: null }))).toBe('running')
+
+  const failed = check({ kind: 'guard', seen: 5, min_seen: 1, result: 'failed', review: 'failed' })
+  expect(progress(failed)).toBe('to review')
+  expect(checkGlyph(failed).tone).toBe(checkGlyph(check({})).tone)
+
+  const pr = toPr(merged, { app: 'shop/production', pull: 564, state: 'pending', deploys: [], checks: [rule] })
+  expect(nextCheck([pr], now)).toBe('')
 })
