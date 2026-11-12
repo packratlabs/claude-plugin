@@ -56,6 +56,8 @@ expect "a failed declaration says how to retry" "$(run PostToolUse "$open --fill
 setup
 touch "$dir/unwatched"
 expect_empty "a repository Packrat does not verify is never stopped" "$(run PreToolUse "$open --fill")"
+draft_is '{"none": "docs"}'
+expect_empty "and hears nothing about a draft it has after the pull request opens" "$(run PostToolUse "$open --fill" 'https://github.com/acme/shop/pull/482')"
 
 setup
 other=$(cd "$(mktemp -d)" && pwd -P); git -C "$other" init -q -b pane-fix
