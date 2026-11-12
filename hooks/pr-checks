@@ -30,6 +30,9 @@ if [ -n "$named" ]; then
   [[ "$origin" == *"/$named" || "$origin" == *":$named" ]] || exit 0
 fi
 branch=$(git branch --show-current 2>/dev/null)
+# The hook runs before the command, so a branch the command makes before gh is the one the pull request comes from.
+made=$(grep -oE "(^|[;&|(])[[:space:]]*git[[:space:]]+(checkout[[:space:]]+-[bB]|switch[[:space:]]+(-[cC]|--create))[[:space:]]+[^;&|)[:space:]]+" <<<"$before" | tail -1 | awk '{print $NF}' | sed -E "s/^[\"']//; s/[\"']\$//")
+[ -n "$made" ] && branch=$made
 [ -n "$branch" ] || [ "$event" = "PostToolUse" ] || exit 0
 draft="$common/packrat/checks/$branch.json"
 packrat="${PACKRAT_HOOK_CLI:-${CLAUDE_PLUGIN_ROOT:-$(dirname "$0")/..}/bin/packrat}"
