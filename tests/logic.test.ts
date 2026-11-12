@@ -73,8 +73,9 @@ test('a pending pull request is live for its first hour after the deploy', async
 
 test('the summary adds the verdicts up', async () => {
   const at = (state: string | null, deployed: string) => toPr(merged, { app: 'colorbook/production', pull: 1, state, deploys: [{ deployed_at: deployed, verdict: null }], checks: [] })
-  const parts = summary([at('pending', '2026-11-06T11:50:00Z'), at('refuted', '2026-11-01T00:00:00Z'), at('confirmed', '2026-11-01T00:00:00Z'), at('confirmed', '2026-11-02T00:00:00Z')])
-  expect(parts.map(p => p.text)).toEqual(["✗ 1 didn't work", '◷ 1 pending', '✓ 2 worked'])
+  const parts = summary([at('pending', '2026-11-06T11:50:00Z'), at('refuted', '2026-11-01T00:00:00Z'), at('confirmed', '2026-11-01T00:00:00Z'),
+    at('confirmed', '2026-11-02T00:00:00Z'), at('not_observable', '2026-11-02T00:00:00Z'), at('archived', '2026-11-02T00:00:00Z')])
+  expect(parts.map(p => p.text)).toEqual(["✗ 1 didn't work", '◷ 1 pending', '✓ 2 worked', '– 1 not verified'])
 })
 
 test('the pane lists only pull requests a deploy has shipped', async () => {

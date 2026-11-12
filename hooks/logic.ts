@@ -117,6 +117,9 @@ export function summary(prs: readonly Pr[]) {
     const n = prs.filter(pr => verdict(pr.state) === v).length
     if (n > 0) parts.push({ text: `${VERDICTS[v].glyph} ${n} ${VERDICTS[v].label}`, tone: VERDICTS[v].tone })
   }
+  // An archived pull request has the same glyph, but only one no check settled is counted.
+  const unverified = prs.filter(pr => pr.state === 'not_observable').length
+  if (unverified > 0) parts.push({ text: `${VERDICTS.none.glyph} ${unverified} ${VERDICTS.none.label}`, tone: VERDICTS.none.tone })
   return parts
 }
 
