@@ -70,6 +70,14 @@ cd $dir && git status")
 expect_empty "a cd on a line after gh does not count" "$out"
 
 setup
+git -C "$dir" checkout -q -b main
+out=$(run PreToolUse "git checkout -b heading && git commit -qm Heading && $open --fill")
+expect "a branch made before gh names its own draft" "$out" "$dir/.git/packrat/checks/heading.json"
+mkdir -p "$dir/.git/packrat/checks"; echo '{"none": "docs"}' > "$dir/.git/packrat/checks/heading.json"
+expect_empty "and that draft lets it through" "$(run PreToolUse "git switch -c heading && $open --fill")"
+expect "a branch made after gh does not count" "$(run PreToolUse "$open --fill; git checkout -b heading")" "$dir/.git/packrat/checks/main.json"
+
+setup
 git -C "$dir" remote add origin https://github.com/acme/shop.git
 expect_empty "-R naming another repository is let through" "$(run PreToolUse "$open -R acme/elsewhere --fill")"
 expect_empty "without asking Packrat" "$(cat "$dir/asked" 2>/dev/null)"
