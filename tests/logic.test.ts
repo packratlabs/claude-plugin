@@ -126,11 +126,11 @@ test('wraps text at spaces so each line can carry the rail', async () => {
   expect(wrap('abcdefghij', 4)).toEqual(['abcd'])
 })
 
-test('a rule check shows how far it has got, waits for review as pending, and has no time to wait for', async () => {
+test('an open rule check is pending, waits for review as pending, and has no time to wait for', async () => {
   const rule = check({ kind: 'appears', seen: 40, min_seen: 200, due_at: '2026-11-09T12:00:00Z' })
-  expect(progress(rule)).toBe('40/200')
-  expect(checkWhen(rule, now)).toBe('40/200')
-  expect(progress(check({ kind: 'guard', seen: null }))).toBe('running')
+  expect(progress(rule)).toBe('pending')
+  expect(checkWhen(rule, now)).toBe('pending')
+  expect(progress(check({ kind: 'guard', seen: null }))).toBe('pending')
 
   const failed = check({ kind: 'guard', seen: 5, min_seen: 1, result: 'failed', review: 'failed' })
   expect(progress(failed)).toBe('to review')

@@ -198,11 +198,9 @@ export function due(check: Check, now: number) {
   return day(runs)
 }
 
-// How far an open rule check has got: '40/200' seen of its min_seen, or that it waits for review.
+// An open rule check is pending until it closes, unless it waits for review.
 export function progress(check: Check) {
-  if (check.review) return 'to review'
-  if (check.seen === null || check.seen === undefined) return 'running'
-  return `${check.seen}/${check.min_seen ?? 1}`
+  return check.review ? 'to review' : 'pending'
 }
 
 // The widest a check's time can be: 'in 14h 04m'.
