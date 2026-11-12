@@ -19,7 +19,7 @@ web='[[:space:]](--web|-w)([[:space:]]|$)'
 [ -n "$cwd" ] && cd "$cwd" 2>/dev/null
 # gh runs where the last cd before it leaves the shell, which is another checkout when Claude opens a pull request
 # in a repository beside the session's.
-before=$(sed -E 's/gh[[:space:]]+pr[[:space:]]+create.*//' <<<"$command" | tr '\n' ';')
+before=$(tr '\n' ';' <<<"$command" | sed -E 's/gh[[:space:]]+pr[[:space:]]+create.*//')
 moved=$(grep -oE "(^|[;&|(])[[:space:]]*cd[[:space:]]+[^;&|)[:space:]]+" <<<"$before" | tail -1 | sed -E "s/^[;&|([:space:]]*cd[[:space:]]+//; s/^[\"']//; s/[\"']\$//")
 [ -n "$moved" ] && { cd "${moved/#\~/$HOME}" 2>/dev/null || exit 0; }
 common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0

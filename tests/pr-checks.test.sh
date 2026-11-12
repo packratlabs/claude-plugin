@@ -64,6 +64,10 @@ expect_empty "a cd into another checkout reads that checkout's draft" "$(run Pre
 expect "and asks Packrat about it" "$(cat "$dir/asked")" "--file $other/.git/packrat/checks/pane-fix.json"
 out=$(run PreToolUse "cd $other && cd $dir && $open --fill")
 expect "the last cd before gh is the one that counts" "$out" "$draft"
+out=$(run PreToolUse "cd $other && $open --fill --body 'one
+two'
+cd $dir && git status")
+expect_empty "a cd on a line after gh does not count" "$out"
 
 setup
 git -C "$dir" remote add origin https://github.com/acme/shop.git
