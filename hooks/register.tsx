@@ -12,7 +12,6 @@ import {
   checkGlyph,
   checkName,
   checkWhen,
-  nextCheck,
   wrap,
   deployed,
   fit,
@@ -297,7 +296,6 @@ export const register: Register = (on, options) => {
             {summary(prs).map((part, i) => (
               <Text color={part.tone}>{i > 0 ? '  ' : ''}{part.text}</Text>
             ))}
-            {nextCheck(prs, now) && <Text dimColor>{`  · next check ${nextCheck(prs, now)}`}</Text>}
             {prs.length === 0 && <Text dimColor>{isRefreshing ? 'Reading Packrat…' : 'No deployed pull requests yet.'}</Text>}
           </Text>
           {lastError !== null && <Text color="error" wrap="truncate-end">{lastError}</Text>}

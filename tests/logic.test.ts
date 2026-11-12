@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, progress, deployed, isLive, isSettled, nextCheck, noChecks, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, progress, deployed, isLive, isSettled, noChecks, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -120,17 +120,6 @@ test('a pending pull request is read every minute in its first hour, then every 
   expect(rereadAfter(merged, null, deployedAt)).toBe(0)
 })
 
-test('the summary says when the first open check of any pull request runs', async () => {
-  const at = Date.parse('2026-11-06T12:00:00Z')
-  const pr = (checks: Check[]): Pr => ({ ...merged, app: 'a/production', org: 'org_1', state: null, deployedAt: at, checks, none: null })
-  expect(nextCheck([pr([])], at)).toBe('')
-  expect(nextCheck([pr([check({ closed_at: '2026-11-05T00:00:00Z', result: 'passed' })])], at)).toBe('')
-  expect(nextCheck([
-    pr([check({ due_at: '2026-11-11T19:13:00Z', runs_at: '2026-11-11T20:08:00Z' })]),
-    pr([check({ due_at: '2026-11-06T13:13:00Z', runs_at: '2026-11-06T14:08:00Z' })]),
-  ], at)).toBe('in 2h 08m')
-})
-
 test('wraps text at spaces so each line can carry the rail', async () => {
   expect(wrap('Checkout times out when the card network is slow', 20)).toEqual(['Checkout times out', 'when the card', 'network is slow'])
   expect(wrap('', 20)).toEqual([])
@@ -146,7 +135,4 @@ test('a rule check shows how far it has got, waits for review as pending, and ha
   const failed = check({ kind: 'guard', seen: 5, min_seen: 1, result: 'failed', review: 'failed' })
   expect(progress(failed)).toBe('to review')
   expect(checkGlyph(failed).tone).toBe(checkGlyph(check({})).tone)
-
-  const pr = toPr(merged, { app: 'shop/production', pull: 564, state: 'pending', deploys: [], checks: [rule] })
-  expect(nextCheck([pr], now)).toBe('')
 })

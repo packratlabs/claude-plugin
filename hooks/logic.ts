@@ -205,15 +205,6 @@ export function progress(check: Check) {
   return `${check.seen}/${check.min_seen ?? 1}`
 }
 
-// When the first open check of any pull request listed runs: '' when none is open. A rule check runs every five
-// minutes, so only checks from before rules have a time to wait for.
-export function nextCheck(prs: readonly Pr[], now: number) {
-  const open = prs.flatMap(pr => pr.checks).filter(check => check.closed_at === null && !check.kind)
-  if (open.length === 0) return ''
-  const first = open.reduce((a, b) => (Date.parse(b.runs_at ?? b.due_at) < Date.parse(a.runs_at ?? a.due_at) ? b : a))
-  return due(first, now)
-}
-
 // The widest a check's time can be: 'in 14h 04m'.
 export const WHEN_WIDTH = 10
 
