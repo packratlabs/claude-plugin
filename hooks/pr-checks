@@ -76,8 +76,8 @@ if [ ! -f "$draft" ]; then
   echo '{"none": "probe"}' | "$packrat" pr checks set --dry-run --file - >/dev/null 2>&1 || exit 0
   say PostToolUse "Packrat: no checks were drafted for ${head:-$branch}, so none were declared for $url. Draft them (see the packrat:checks skill) and run: packrat pr checks set $url --file $draft"
 fi
-if answer=$("$packrat" pr checks set "$url" --file "$draft" 2>&1); then
-  say PostToolUse "Packrat: $answer"
-fi
+answer=$("$packrat" pr checks set "$url" --file "$draft" 2>&1); code=$?
+[ $code -eq 0 ] && say PostToolUse "Packrat: $answer"
+[ $code -eq 3 ] && exit 0
 say PostToolUse "Packrat did not declare the checks for $url: $answer
 Declare them with: packrat pr checks set $url --file $draft"
