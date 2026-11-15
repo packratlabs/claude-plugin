@@ -151,7 +151,7 @@ export function createdPull(command: string, output: string): { repo: string; nu
 export function waitingLine(pr: Pr) {
   // Before its deploy a pull request's checks are only declared: they become checks when the deploy is recorded.
   const count = pr.checks.length || pr.declared
-  return `waiting for its deploy${count === 0 ? '' : ` · ${count} ${count === 1 ? 'check' : 'checks'}`}`
+  return `waiting for deploy${count === 0 ? '' : ` · ${count} ${count === 1 ? 'check' : 'checks'}`}`
 }
 
 // A check with no title is named by its first sentence, after the pull request and commit it opens with.

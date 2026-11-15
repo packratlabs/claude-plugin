@@ -165,7 +165,7 @@ test('gh pr create in a repository Packrat verifies opens the pane, unfocused, o
   })
   const drawn = JSON.stringify(await pane.drawn())
   expect(drawn).toContain('Add a filter')
-  expect(drawn).toContain('waiting for its deploy · 2 checks')
+  expect(drawn).toContain('waiting for deploy · 2 checks')
   expect(drawn.indexOf('Add a filter')).toBeLessThan(drawn.indexOf("Show the current month's pace"))
 })
 
@@ -202,7 +202,7 @@ test('the first pull request of a new app opens the pane once the hook has decla
     plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
     props: { title: 'Packrat', isFocused: false, bodyColumns: 60, placement: 'dock' } as never,
   })
-  expect(JSON.stringify(await pane.drawn())).toContain('waiting for its deploy · 2 checks')
+  expect(JSON.stringify(await pane.drawn())).toContain('waiting for deploy · 2 checks')
 })
 
 test('gh pr create in a repository Packrat does not verify opens nothing, and asks only the one question', async ($, on) => {
