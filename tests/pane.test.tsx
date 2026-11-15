@@ -129,3 +129,121 @@ test('a pane behind another tab asks Packrat nothing, and an old pending pull re
   await clock.advance(20 * 60 * 1000)
   expect(reads).toBe(first + 1)
 })
+
+const created = 'https://github.com/a/b/pull/580'
+// What packrat pr show answers before the deploy: the checks are declared, and none has run.
+const declared = { app: 'colorbook/production', pull: 580, state: null, analysed: true, deploys: [], checks: [], declared: [{ title: 'One' }, { title: 'Two' }] }
+
+test('gh pr create in a repository Packrat verifies opens the pane, unfocused, on the new pull request as waiting', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (argv.startsWith('gh pr view 580')) return answer('Add a filter\n')
+    if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(shown))
+    if (argv.endsWith('pr show 580 --json')) return answer(JSON.stringify(declared))
+    throw new Error(`unexpected ${argv}`)
+  })
+  const opened: unknown[] = []
+  on('ui.open', async (_$, e) => {
+    opened.push(e)
+    return { value: undefined }
+  })
+  on('tool.call', () => ({ result: { stdout: `${created}\n`, stderr: '' } }))
+
+  await $.tool.call({ tool: 'Bash', command: 'gh pr create --title "Add a filter" --body "x"' })
+  await clock.settle()
+
+  expect(JSON.stringify(opened)).toContain('"id":"packrat"')
+  expect(JSON.stringify(opened)).not.toContain('"focus":true')
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat', isFocused: false, bodyColumns: 60, placement: 'dock' } as never,
+  })
+  const drawn = JSON.stringify(await pane.drawn())
+  expect(drawn).toContain('Add a filter')
+  expect(drawn).toContain('waiting for its deploy · 2 checks')
+  expect(drawn.indexOf('Add a filter')).toBeLessThan(drawn.indexOf("Show the current month's pace"))
+})
+
+test('the first pull request of a new app opens the pane once the hook has declared its checks', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  let asked = 0
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer('[]')
+    if (argv.startsWith('gh pr view 580')) return answer('Set up Packrat\n')
+    // The app has only its development data, and the hook declares the checks after the first question.
+    if (argv.endsWith('pr show 580 --json')) return answer(JSON.stringify({ ...declared, app: 'shop/development', analysed: false, declared: ++asked > 2 ? declared.declared : [] }))
+    throw new Error(`unexpected ${argv}`)
+  })
+  let opened = 0
+  on('ui.open', async () => {
+    opened++
+    return { value: undefined }
+  })
+  on('tool.call', () => ({ result: { stdout: `${created}\n`, stderr: '' } }))
+
+  await $.tool.call({ tool: 'Bash', command: 'gh pr create --fill' })
+  await clock.settle()
+  await clock.advance(2_000)
+  await clock.settle()
+  await clock.advance(2_000)
+  await clock.settle()
+
+  expect(opened).toBe(1)
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat', isFocused: false, bodyColumns: 60, placement: 'dock' } as never,
+  })
+  expect(JSON.stringify(await pane.drawn())).toContain('waiting for its deploy · 2 checks')
+})
+
+test('gh pr create in a repository Packrat does not verify opens nothing, and asks only the one question', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  const asked: string[] = []
+  on('process.run', async (_$, e) => {
+    asked.push(e.argv.slice(1).join(' '))
+    return { value: { exitCode: 1, stdout: '', stderr: 'packrat pr show: no app is connected to a/b on GitHub.', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  let opened = 0
+  on('ui.open', async () => {
+    opened++
+    return { value: undefined }
+  })
+  on('tool.call', () => ({ result: { stdout: `${created}\n`, stderr: '' } }))
+
+  await $.tool.call({ tool: 'Bash', command: 'gh pr create --fill' })
+  await clock.settle()
+
+  expect(opened).toBe(0)
+  expect(asked).toEqual(['pr show 580 --json'])
+})
+
+test('a Bash command that is not gh pr create, or one that failed, asks nothing', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  let asked = 0
+  on('process.run', async () => {
+    asked++
+    return answer('')
+  })
+  on('tool.call', (_$, e) => (String((e as { command?: string }).command).startsWith('gh pr create')
+    ? { result: { stdout: 'a pull request for branch "f" already exists\n', stderr: '' }, isError: true }
+    : { result: { stdout: `${created}\n`, stderr: '' } }))
+
+  await $.tool.call({ tool: 'Bash', command: 'gh pr view 580' })
+  await $.tool.call({ tool: 'Bash', command: 'gh pr create --fill' })
+  await clock.settle()
+
+  expect(asked).toBe(0)
+})

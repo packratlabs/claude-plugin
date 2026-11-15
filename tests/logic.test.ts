@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, progress, deployed, isLive, isSettled, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, createdPull, waitingLine, progress, deployed, isLive, isSettled, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -129,4 +129,23 @@ test('an open rule check says nothing beside its glyph, waits for review as pend
   const failed = check({ kind: 'guard', seen: 5, min_seen: 1, result: 'failed', review: 'failed' })
   expect(progress(failed)).toBe('to review')
   expect(checkGlyph(failed).tone).toBe(checkGlyph(check({})).tone)
+})
+
+test('a pull request gh pr create just opened is read from what it printed, and nothing else is', async () => {
+  const url = 'https://github.com/acme/shop/pull/12'
+  expect(createdPull('gh pr create --title "Add a filter" --body "x"', `${url}\n`)).toEqual({ repo: 'acme/shop', number: 12, url })
+  expect(createdPull('git push -u origin f && gh pr create --fill', `remote: ok\n${url}\n`)?.number).toBe(12)
+  expect(createdPull('gh pr create --fill', `Closes https://github.com/acme/shop/pull/3\n${url}\n`)?.number).toBe(12)
+  expect(createdPull('gh pr create --web', `${url}\n`)).toBe(null)
+  expect(createdPull('gh pr view 12', `${url}\n`)).toBe(null)
+  expect(createdPull('git commit -m "run gh pr create later"', `${url}\n`)).toBe(null)
+  expect(createdPull('gh pr create --fill', 'a pull request for branch "f" already exists\n')).toBe(null)
+})
+
+test('a pull request that has not deployed says so, with the checks it declared', async () => {
+  const pr: Pr = { ...merged, app: null, org: null, state: null, deployedAt: null, checks: [], declared: 0 }
+  expect(waitingLine(pr)).toBe('waiting for its deploy')
+  expect(waitingLine({ ...pr, declared: 2 })).toBe('waiting for its deploy · 2 checks')
+  expect(waitingLine({ ...pr, checks: [check({})] })).toBe('waiting for its deploy · 1 check')
+  expect(waitingLine({ ...pr, checks: [check({}), check({ id: 'chk_2' })] })).toBe('waiting for its deploy · 2 checks')
 })

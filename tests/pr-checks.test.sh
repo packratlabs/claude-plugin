@@ -50,6 +50,7 @@ draft_is '[{"title": "Faster", "claim": "p95", "sql": "SELECT 1 AS seen", "pass_
 out=$(run PostToolUse "$open --fill" $'https://github.com/acme/shop/pull/482\n')
 expect "the draft is declared under the new number" "$(cat "$dir/asked")" "pr checks set https://github.com/acme/shop/pull/482 --file $draft"
 expect "and Claude hears it" "$out" "Packrat: Declared for"
+expect "and is told to name /packrat" "$out" "Tell the developer that /packrat in Claude Code shows this pull request's verification"
 draft_is bad
 expect "a failed declaration says how to retry" "$(run PostToolUse "$open --fill" 'https://github.com/acme/shop/pull/482')" "Packrat did not declare the checks"
 
