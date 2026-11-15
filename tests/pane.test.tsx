@@ -130,6 +130,37 @@ test('a pane behind another tab asks Packrat nothing, and an old pending pull re
   expect(reads).toBe(first + 1)
 })
 
+test('a pull request that opened by itself while live stays open once its verdict arrives', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  let answered = shown
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(answered))
+    throw new Error(`unexpected ${argv}`)
+  })
+  on('ui.open', async () => ({ value: undefined }))
+  on('ui.panes', async () => ({ value: [{ id: 'packrat', title: 'Packrat', isShown: true, isFocused: true, isPlaced: true }] }))
+
+  await $.command.run({ command: 'packrat' })
+  await clock.settle()
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 60, placement: 'dock' } as never,
+  })
+  expect(JSON.stringify(await pane.drawn())).toContain('The page still loads')
+
+  answered = { ...shown, state: 'confirmed', checks: [{ ...shown.checks[0]!, closed_at: '2026-11-07T14:16:00Z', result: 'passed' }] }
+  await clock.advance(2 * 60 * 1000)
+  await clock.settle()
+  const drawn = JSON.stringify(await pane.drawn())
+  expect(drawn).toContain('worked')
+  expect(drawn).toContain('The page still loads')
+})
+
 const created = 'https://github.com/a/b/pull/580'
 // What packrat pr show answers before the deploy: the checks are declared, and none has run.
 const declared = { app: 'colorbook/production', pull: 580, state: null, analysed: true, deploys: [], checks: [], declared: [{ title: 'One' }, { title: 'Two' }] }
