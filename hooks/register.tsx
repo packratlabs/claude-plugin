@@ -53,7 +53,8 @@ let waiting: Pr[] = []
 let checkedAt = 0
 let isRefreshing = false
 let lastError: string | null = null
-const expanded = new Set<number>()
+// A row keeps the state it was last drawn in, so a verdict arriving does not close a row someone is reading.
+const opened = new Map<number, boolean>()
 let tab: 'pulls' | 'issues' = 'pulls'
 const TABS: [typeof tab, string][] = [['pulls', 'PR Verifications'], ['issues', 'Issues']]
 let issues: IssueList | null = null
@@ -314,8 +315,7 @@ export const register: Register = (on, options) => {
       if (repo === null) return <Text dimColor>{checkedRepo ? 'Not in a GitHub repository gh can see.' : 'Reading Packrat…'}</Text>
 
       const toggle = (n: number) => {
-        if (expanded.has(n)) expanded.delete(n)
-        else expanded.add(n)
+        opened.set(n, !opened.get(n))
         $.ui.invalidate('ui.render')
       }
       const ask = (n: number) => void $.prompt.fill({ text: `/packrat:ask how did PR ${n} do`, mode: 'replace' })
@@ -354,8 +354,9 @@ export const register: Register = (on, options) => {
           ))}
           {prs.map(pr => {
             const v = VERDICTS[verdict(pr.state)]
-            // A pull request in its first hour opens by itself; pressing it flips that, as for any other.
-            const isOpen = expanded.has(pr.number) !== isLive(pr, now)
+            // A pull request first drawn while live opens by itself, and stays open once it is not.
+            if (!opened.has(pr.number)) opened.set(pr.number, isLive(pr, now))
+            const isOpen = opened.get(pr.number)!
             return (
               <Box key={`row-${pr.number}`} flexDirection="column">
                 <Button key={`pr-${pr.number}`} plain onPress={() => toggle(pr.number)}>
