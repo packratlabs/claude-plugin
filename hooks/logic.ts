@@ -25,11 +25,13 @@ export type Check = {
 
 export type Deploy = { deployed_at: string; verdict: string | null }
 
-export type PullAnswer = { app: string; org?: string; pull: number; state: string | null; deploys: Deploy[]; checks: Check[] }
+// analysed is false for an app Packrat does not verify, which a new app is until production reports: its first pull
+// request is verified all the same, and says so by the checks it declared.
+export type PullAnswer = { app: string; org?: string; pull: number; state: string | null; analysed?: boolean; deploys: Deploy[]; checks: Check[]; declared?: unknown[] }
 
 export type Merged = { number: number; title: string; url: string; mergedAt: string }
 
-export type Pr = Merged & { app: string | null; org: string | null; state: string | null; deployedAt: number | null; checks: Check[] }
+export type Pr = Merged & { app: string | null; org: string | null; state: string | null; deployedAt: number | null; checks: Check[]; declared: number }
 
 export type Verdict = 'worked' | 'didnt' | 'partly' | 'pending' | 'none'
 export type Tone = 'success' | 'error' | 'warning' | 'suggestion' | 'subtle'
@@ -125,11 +127,32 @@ export function summary(prs: readonly Pr[]) {
 
 export function toPr(merged: Merged, answer: PullAnswer | null): Pr {
   const first = answer?.deploys.map(d => Date.parse(d.deployed_at)).filter(t => !Number.isNaN(t)).sort((a, b) => a - b)[0]
-  return { ...merged, app: answer?.app ?? null, org: answer?.org ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [] }
+  return { ...merged, app: answer?.app ?? null, org: answer?.org ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [], declared: answer?.declared?.length ?? 0 }
 }
 
 // Packrat has a page for a pull request only once a recorded deploy shipped it; until then it has nothing to verify.
 export const deployed = (prs: readonly Pr[]) => prs.filter(pr => pr.deployedAt !== null)
+
+const CREATE = /(^|[;&|(\n])\s*gh\s+pr\s+create(\s|$)/
+const WEB = /\s(--web|-w)(\s|$)/
+const PULL_URL = /https:\/\/github\.com\/([^/\s"]+\/[^/\s"]+)\/pull\/(\d+)/g
+
+// The pull request a `gh pr create` just opened, read from what the command printed. The last URL is the new one:
+// gh prints it at the end, after any it quoted from the body.
+export const verifies = (answer: PullAnswer) => answer.analysed !== false || (answer.declared?.length ?? 0) > 0
+
+export function createdPull(command: string, output: string): { repo: string; number: number; url: string } | null {
+  if (!CREATE.test(command) || WEB.test(command)) return null
+  const found = [...output.matchAll(PULL_URL)].at(-1)
+  return found ? { repo: found[1]!, number: Number(found[2]), url: found[0] } : null
+}
+
+// What a pull request that has not deployed says under its title.
+export function waitingLine(pr: Pr) {
+  // Before its deploy a pull request's checks are only declared: they become checks when the deploy is recorded.
+  const count = pr.checks.length || pr.declared
+  return `waiting for its deploy${count === 0 ? '' : ` · ${count} ${count === 1 ? 'check' : 'checks'}`}`
+}
 
 // A check with no title is named by its first sentence, after the pull request and commit it opens with.
 export function checkName(check: Check) {

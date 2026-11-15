@@ -77,7 +77,9 @@ if [ ! -f "$draft" ]; then
   say PostToolUse "Packrat: no checks were drafted for ${head:-$branch}, so none were declared for $url. Draft them (see the packrat:checks skill) and run: packrat pr checks set $url --file $draft"
 fi
 answer=$("$packrat" pr checks set "$url" --file "$draft" 2>&1); code=$?
-[ $code -eq 0 ] && say PostToolUse "Packrat: $answer"
+# The pane opens by itself only on a wide terminal, and never in a later session, so the command is said every time.
+[ $code -eq 0 ] && say PostToolUse "Packrat: $answer
+Tell the developer that /packrat in Claude Code shows this pull request's verification: it waits there until its deploy, then shows each check's result."
 [ $code -eq 3 ] && exit 0
 say PostToolUse "Packrat did not declare the checks for $url: $answer
 Declare them with: packrat pr checks set $url --file $draft"

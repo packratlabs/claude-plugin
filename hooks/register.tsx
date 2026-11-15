@@ -12,6 +12,7 @@ import {
   checkGlyph,
   checkName,
   checkWhen,
+  createdPull,
   wrap,
   deployed,
   fit,
@@ -27,6 +28,8 @@ import {
   toPr,
   verdict,
   verificationUrl,
+  verifies,
+  waitingLine,
 } from './logic'
 
 type Api = Parameters<Hook<'session.start'>>[0]
@@ -41,6 +44,12 @@ let cli = 'packrat'
 let limit = 12
 let site = 'https://packrat.sh'
 let prs: Pr[] = []
+// The pull requests this session opened that no deploy has shipped yet. Only these are shown before their deploy:
+// a team's open pull requests would fill the pane.
+const DECLARE_ASKS = 5
+const DECLARE_WAIT_MS = 2_000
+const created = new Map<number, Merged>()
+let waiting: Pr[] = []
 let checkedAt = 0
 let isRefreshing = false
 let lastError: string | null = null
@@ -137,6 +146,10 @@ async function refreshPulls($: Api) {
       }),
     )
     prs = deployed(merged.map((pr, i) => toPr(pr, answers[i] ?? null)))
+    for (const pr of prs) created.delete(pr.number)
+    const opened = [...created.values()]
+    const declared = await Promise.all(opened.map(pr => readPull($, pr.number)))
+    waiting = opened.map((pr, i) => toPr(pr, declared[i] ?? null))
     checkedAt = await $.clock.now()
   } catch (error) {
     fail($, `refresh failed: ${String(error)}`)
@@ -219,6 +232,37 @@ async function start($: Api) {
   }
 }
 
+// Opens the pane on a pull request `gh pr create` just opened, when Packrat verifies its repository. Nothing is
+// started for a repository it does not: one question to the CLI, and no pane.
+async function showCreated($: Api, command: string, output: string) {
+  try {
+    const found = createdPull(command, output)
+    if (found === null) return
+    const here = await $.session.root()
+    const packrat = String(pluginOptions.cli ?? '').trim() || `${$.plugin.root}/bin/packrat`
+    // The plugin's command hook declares the checks after this runs, so a new app is asked again until it has.
+    for (let asked = 1; ; asked++) {
+      const shown = await $.process.run([packrat, 'pr', 'show', String(found.number), '--json'], { cwd: here, timeoutMs: 30_000 })
+      if (shown.exitCode !== 0) return
+      if (verifies(JSON.parse(shown.stdout) as PullAnswer)) break
+      if (asked === DECLARE_ASKS) return
+      await $.clock.sleep(DECLARE_WAIT_MS)
+    }
+    await start($)
+    if (repo?.toLowerCase() !== found.repo.toLowerCase()) return
+    const viewed = await $.process.run(['gh', 'pr', 'view', String(found.number), '--json', 'title', '-q', '.title'], { cwd: root, timeoutMs: 20_000 })
+    created.set(found.number, { number: found.number, title: viewed.exitCode === 0 ? viewed.stdout.trim() : '', url: found.url, mergedAt: '' })
+    tab = 'pulls'
+    // Not focused: the person is in the chat, and did not ask for this.
+    await $.ui.open({ id: PANE, title: 'Packrat' })
+    await refresh($)
+    // The plugin's command hook declares the checks after this runs, so the row is read once more for their count.
+    await refresh($)
+  } catch (error) {
+    void log($, `showing a new pull request failed: ${String(error)}`)
+  }
+}
+
 export const register: Register = (on, options) => {
   pluginOptions = options
   limit = Math.min(30, Math.max(3, Number(options.pulls ?? 12)))
@@ -228,6 +272,13 @@ export const register: Register = (on, options) => {
     await $.command.register({ name: 'packrat', description: "Show how this repository's pull requests did in production, and its issues", argumentHint: '[issues]' })
 
     return next(e)
+  })
+
+  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    const ran = await next(e)
+    if (ran.deny === undefined && ran.isError !== true) void showCreated($, e.command, ran.result.stdout)
+
+    return ran
   })
 
   on('command.run', { command: 'packrat' }, async ($, e) => {
@@ -290,11 +341,17 @@ export const register: Register = (on, options) => {
             {summary(prs).map((part, i) => (
               <Text color={part.tone}>{i > 0 ? '  ' : ''}{part.text}</Text>
             ))}
-            {prs.length === 0 && <Text dimColor>{isRefreshing ? 'Reading Packrat…' : 'No deployed pull requests yet.'}</Text>}
+            {prs.length === 0 && waiting.length === 0 && <Text dimColor>{isRefreshing ? 'Reading Packrat…' : 'No deployed pull requests yet.'}</Text>}
           </Text>
           {lastError !== null && <Text color="error" wrap="truncate-end">{lastError}</Text>}
 
           <Box marginTop={1} />
+          {waiting.map(pr => (
+            <Box key={`waiting-${pr.number}`} flexDirection="column" marginBottom={1}>
+              <Text><Text color={VERDICTS.pending.tone}>{VERDICTS.pending.glyph}</Text> <Text bold>#{pr.number} {fit(pr.title, width - 8).trimEnd()}</Text></Text>
+              <Text dimColor>└ {waitingLine(pr)}</Text>
+            </Box>
+          ))}
           {prs.map(pr => {
             const v = VERDICTS[verdict(pr.state)]
             // A pull request in its first hour opens by itself; pressing it flips that, as for any other.
