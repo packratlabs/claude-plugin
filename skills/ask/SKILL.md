@@ -54,6 +54,10 @@ Give a reason whenever the conversation says why, in one plain sentence: for exa
 measured the wrong thing, or the error is expected. The analyst reads the reason, so a good one keeps
 it from raising the same issue again. Do not resolve or archive anything the user did not ask you to.
 
+When you fix a Packrat issue, write `Fixes <ID>` (for example `Fixes SHOP-41`) in the pull request's
+description, one line for each issue. Packrat resolves the issue when the deploy that ships the pull
+request goes live, and reopens it if the error comes back. Do not resolve it yourself as well.
+
 ## Queries
 
 Before you run your first `packrat sql` query, read https://packrat.sh/docs/investigate.md. It lists

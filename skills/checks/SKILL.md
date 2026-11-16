@@ -104,6 +104,9 @@ If a check is still refused after two attempts, stop changing it. Send it in the
 the pull request's page lists it, and Packrat records it so the skill can be improved. Tell the user which check
 you dropped and why.
 
+If the change fixes a Packrat issue, also write `Fixes <ID>` (for example `Fixes SHOP-41`) in the pull
+request's description, one line for each issue. Packrat resolves it when the deploy goes live.
+
 ## Changing the checks
 
 Until a deploy ships the pull request, edit the draft and run `packrat pr checks set <number> --file <draft>`.
