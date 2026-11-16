@@ -1,3 +1,4 @@
+import { atom, read, update } from 'claude-code'
 import type { Hook, Register } from 'claude-code'
 
 import {
@@ -45,10 +46,10 @@ let limit = 12
 let site = 'https://packrat.sh'
 let prs: Pr[] = []
 // The pull requests this session opened that no deploy has shipped yet. Only these are shown before their deploy:
-// a team's open pull requests would fill the pane.
+// a team's open pull requests would fill the pane. Kept in the session's state, which a reload of the plugin leaves.
+const created = atom({ plugin: 'packrat', key: 'created' } as const, [], { shape: 'created-1' })
 const DECLARE_ASKS = 5
 const DECLARE_WAIT_MS = 2_000
-const created = new Map<number, Merged>()
 let waiting: Pr[] = []
 let checkedAt = 0
 let isRefreshing = false
@@ -147,8 +148,9 @@ async function refreshPulls($: Api) {
       }),
     )
     prs = deployed(merged.map((pr, i) => toPr(pr, answers[i] ?? null)))
-    for (const pr of prs) created.delete(pr.number)
-    const opened = [...created.values()]
+    const shipped = new Set(prs.map(pr => pr.number))
+    if ((await read($, created)).some(pr => shipped.has(pr.number))) await update($, created, list => list.filter(pr => !shipped.has(pr.number)))
+    const opened = await read($, created)
     const declared = await Promise.all(opened.map(pr => readPull($, pr.number)))
     waiting = opened.map((pr, i) => toPr(pr, declared[i] ?? null))
     checkedAt = await $.clock.now()
@@ -252,7 +254,8 @@ async function showCreated($: Api, command: string, output: string) {
     await start($)
     if (repo?.toLowerCase() !== found.repo.toLowerCase()) return
     const viewed = await $.process.run(['gh', 'pr', 'view', String(found.number), '--json', 'title', '-q', '.title'], { cwd: root, timeoutMs: 20_000 })
-    created.set(found.number, { number: found.number, title: viewed.exitCode === 0 ? viewed.stdout.trim() : '', url: found.url, mergedAt: '' })
+    const opened: Merged = { number: found.number, title: viewed.exitCode === 0 ? viewed.stdout.trim() : '', url: found.url, mergedAt: '' }
+    await update($, created, list => [...list.filter(pr => pr.number !== opened.number), opened])
     tab = 'pulls'
     // Not focused: the person is in the chat, and did not ask for this.
     await $.ui.open({ id: PANE, title: 'Packrat' })

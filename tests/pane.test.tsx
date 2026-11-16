@@ -200,6 +200,35 @@ test('gh pr create in a repository Packrat verifies opens the pane, unfocused, o
   expect(drawn.indexOf('Add a filter')).toBeLessThan(drawn.indexOf("Show the current month's pace"))
 })
 
+test('a pull request this session opened is still waiting after the plugin reloads', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (argv.endsWith('auth status')) return answer('Signed in to dlite (org_abc123) as dev')
+    if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(shown))
+    if (argv.endsWith('pr show 580 --json')) return answer(JSON.stringify(declared))
+    throw new Error(`unexpected ${argv}`)
+  })
+  on('ui.open', async () => ({ value: undefined }))
+  // What the module wrote before the reload: its own variables are gone, and the session's state is not.
+  on('state.get', () => ({ value: { value: { shape: 'created-1', value: [{ number: 580, title: 'Add a filter', url: created, mergedAt: '' }] }, version: 1 } }))
+
+  await $.command.run({ command: 'packrat' })
+  await clock.settle()
+
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat', isFocused: true, bodyColumns: 60, placement: 'dock' } as never,
+  })
+  const drawn = JSON.stringify(await pane.drawn())
+  expect(drawn).toContain('Add a filter')
+  expect(drawn).toContain('waiting for deploy · 2 checks')
+})
+
 test('the first pull request of a new app opens the pane once the hook has declared its checks', async ($, on) => {
   const clock = mock.clock(on, { now: deployedAt })
   mock.env(on, { HOME: '/home/dev' })
