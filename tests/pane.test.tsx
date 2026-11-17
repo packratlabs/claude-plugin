@@ -39,6 +39,43 @@ test('a pull request deployed minutes ago draws, with when it deployed', async (
   expect(drawn).not.toContain('first look')
 })
 
+test("a thing the day-after review found draws as a failed check marked review, with what it found under it", async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
+  mock.env(on, { HOME: '/home/dev' })
+  const reviewed = {
+    ...shown,
+    checks: [
+      { ...shown.checks[0]!, closed_at: '2026-11-07T14:16:00Z', result: 'passed' },
+      { id: 'chk_2', title: 'Rails routes still answer 304 Not Modified', what: 'Rails routes stopped answering 304', due_at: '2026-11-08T14:13:38Z',
+        closed_at: '2026-11-08T14:20:00Z', result: 'failed', accepted: '', source: 'day_after', runs: [],
+        outcome: 'Deflater runs inside ETag, so no route gets an ETag.' },
+    ],
+  }
+  on('session.root', async () => ({ value: '/repo' }))
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (argv.endsWith('auth status')) return answer('Signed in to dlite (org_abc123) as dev')
+    if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(reviewed))
+    throw new Error(`unexpected ${argv}`)
+  })
+  on('ui.open', async () => ({ value: undefined }))
+
+  await $.command.run({ command: 'packrat' })
+  await clock.settle()
+
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 80, placement: 'dock' } as never,
+  })
+  const drawn = JSON.stringify(await pane.drawn())
+  expect(drawn).toContain('Rails routes still answer 304 Not Modified')
+  expect(drawn).toContain('" review"')
+  expect(drawn).toContain('Deflater runs inside ETag, so no route gets an ETag.')
+  expect(drawn).not.toContain('COLORBOOK')
+})
+
 test('a pane open across a reload starts again by itself, with no /packrat', async ($, on) => {
   const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
   mock.env(on, { HOME: '/home/dev' })

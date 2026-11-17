@@ -38,6 +38,8 @@ type Api = Parameters<Hook<'session.start'>>[0]
 const PANE = 'packrat'
 const POLL_MS = 60_000
 const ISSUES_LISTED = 25
+// After the name of a check the day-after review failed, as the site shows a Review chip.
+const REVIEW = ' review'
 // Module state, as pr-monitor keeps it: a reload starts it over and the next poll fills it again.
 let root = ''
 let repo: string | null = null
@@ -325,15 +327,24 @@ export const register: Register = (on, options) => {
       const openPr = (url: string) => void $.process.run(['open', url], { timeoutMs: 10_000 })
 
       // An open pull request's checks hang off a rail that ends at its buttons, so the block reads as one thing.
+      // A thing the day-after review found is a failed check named by what should be true, marked as the review's, with
+      // what it found under it.
       const checkLines = (pr: Pr) =>
         pr.checks.map(check => {
           const mark = checkGlyph(check)
           const when = checkWhen(check, now)
+          const found = check.source === 'day_after' && check.result === 'failed'
+          const room = Math.max(10, width - 6 - WHEN_WIDTH - (found ? REVIEW.length : 0))
           return (
             <Box key={`check-${check.id}`} flexDirection="column">
               <Text>
-                <Text dimColor>│ </Text><Text color={mark.tone}>{mark.glyph}</Text> {fit(checkName(check), Math.max(10, width - 6 - WHEN_WIDTH))} <Text dimColor>{when}</Text>
+                <Text dimColor>│ </Text><Text color={mark.tone}>{mark.glyph}</Text> {fit(checkName(check), room)}{found && <Text dimColor>{REVIEW}</Text>} <Text dimColor>{when}</Text>
               </Text>
+              {found && check.outcome && (
+                <Text>
+                  <Text dimColor>│ </Text>  {fit(check.outcome, Math.max(10, width - 6))}
+                </Text>
+              )}
             </Box>
           )
         })
