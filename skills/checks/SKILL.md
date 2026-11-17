@@ -36,12 +36,12 @@ Read the tables and their columns before you write SQL: run `packrat open https:
 its Schema section. Then look at a recent span or log line of the code you changed with `packrat sql`, because
 attribute names differ between instrumentations (`http.target` in one app, `url.query` in another).
 
-Ask about requests and jobs in `packrat_traces`: one row for each, with `unit` (the route or job class),
-`duration_ms`, `http_status_code`, `error` and the request's own `span_attributes`. Packrat runs a check's SQL
-over its whole window to validate the draft, and every five minutes after the deploy, so a check that reads
-`packrat_spans` for a day reads every span of that day each time. `packrat_traces` trails real time by 15 to
-75 minutes, as each hour closes, so use `packrat_spans` only for a check whose window is an hour or less, or for
-a span that is not a request or a job, such as a query inside one. Three examples, one of each kind:
+Ask about requests and jobs in `packrat_traces`: one row for each, up to the present minute, with `unit` (the
+route or job class), `duration_ms`, `http_status_code`, `error`, `spans` and the request's own
+`span_attributes`. Packrat runs a check's SQL over its whole window to validate the draft, and every five minutes
+after the deploy, so a check that reads `packrat_spans` for a day reads every span of that day each time. Use
+`packrat_spans` only for a span that is not a request or a job, such as a query inside one. Three examples, one
+of each kind:
 
 ```json
 [
