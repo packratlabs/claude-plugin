@@ -14,6 +14,8 @@ export type Check = {
   // Why a failed check did not stop the deploy working; the site shows that check as excused.
   accepted?: string | null
   source: string | null
+  // What a closed check found; for one of the day-after review's, what it found that the declared checks did not test.
+  outcome?: string | null
   runs: Run[] | null
   // A rule check runs every five minutes until due_at, the end of its window. Older servers send none of these.
   kind?: string | null
