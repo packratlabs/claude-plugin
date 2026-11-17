@@ -34,14 +34,20 @@ If production cannot show the change at all, such as a change to docs or tests o
 
 Read the tables and their columns before you write SQL: run `packrat open https://packrat.sh/docs/api.md` and use
 its Schema section. Then look at a recent span or log line of the code you changed with `packrat sql`, because
-attribute names differ between instrumentations (`http.target` in one app, `url.query` in another). Three
-examples, one of each kind:
+attribute names differ between instrumentations (`http.target` in one app, `url.query` in another).
+
+Ask about requests and jobs in `packrat_traces`: one row for each, up to the present minute, with `unit` (the
+route or job class), `duration_ms`, `http_status_code`, `error`, `spans` and the request's own
+`span_attributes`. Packrat runs a check's SQL over its whole window to validate the draft, and every five minutes
+after the deploy, so a check that reads `packrat_spans` for a day reads every span of that day each time. Use
+`packrat_spans` only for a span that is not a request or a job, such as a query inside one. Three examples, one
+of each kind:
 
 ```json
 [
   { "title": "Shoppers filter by Abercrombie",
     "claim": "At least one request to the shop grid filters by brands[]=abercrombie and answers below 500.",
-    "sql": "SELECT count(*) AS seen, count(*) FILTER (WHERE json_extract_string(span_attributes, '$.\"http.target\"') LIKE '%brands%=abercrombie%') AS matched FROM packrat_spans(since := getvariable('deployed_at'), until := getvariable('until')) WHERE parent_span_id IS NULL AND kind = 2 AND name LIKE 'GET /colors%' AND try_cast(json_extract_string(span_attributes, '$.\"http.status_code\"') AS INTEGER) < 500",
+    "sql": "SELECT count(*) AS seen, count(*) FILTER (WHERE json_extract_string(span_attributes, '$.\"http.target\"') LIKE '%brands%=abercrombie%') AS matched FROM packrat_traces(since := getvariable('deployed_at'), until := getvariable('until')) WHERE kind = 'web' AND unit LIKE 'GET /colors%' AND http_status_code < 500",
     "pass_when": "matched >= 1",
     "window": "3d" },
   { "title": "No raw email in the logs",
@@ -52,7 +58,7 @@ examples, one of each kind:
     "window": "1d" },
   { "title": "The cart is faster",
     "claim": "The p95 of GET /cart is under 300 ms, down from about 840 ms.",
-    "sql": "SELECT count(*) AS seen, quantile_cont(duration_ms, 0.95) AS p95_ms FROM packrat_spans(since := getvariable('deployed_at'), until := getvariable('until')) WHERE parent_span_id IS NULL AND name = 'GET /cart'",
+    "sql": "SELECT count(*) AS seen, quantile_cont(duration_ms, 0.95) AS p95_ms FROM packrat_traces(since := getvariable('deployed_at'), until := getvariable('until')) WHERE kind = 'web' AND unit = 'GET /cart'",
     "pass_when": "p95_ms < 300",
     "fail_when": "p95_ms >= 300",
     "min_seen": 200,
