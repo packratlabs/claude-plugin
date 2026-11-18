@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkName, checkWhen, counts, createdPull, waitingLine, progress, deployed, isLive, isSettled, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, issueLinkParts, linkedIssueUrl, linkedPullUrl, checkName, checkWhen, counts, createdPull, waitingLine, progress, deployed, isLive, isSettled, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -148,4 +148,28 @@ test('a pull request that has not deployed says so, with the checks it declared'
   expect(waitingLine({ ...pr, declared: 2 })).toBe('waiting for deploy · 2 checks')
   expect(waitingLine({ ...pr, checks: [check({})] })).toBe('waiting for deploy · 1 check')
   expect(waitingLine({ ...pr, checks: [check({}), check({ id: 'chk_2' })] })).toBe('waiting for deploy · 2 checks')
+})
+
+test('a pull request that did not work and whose issue is fixed is counted as fixed, not as needing you', async () => {
+  const at = (state: string, settled: boolean) => toPr(merged, {
+    app: 'colorbook/production', pull: 1, state, deploys: [{ deployed_at: '2026-11-01T00:00:00Z', verdict: null }], checks: [], settled,
+    issues: settled ? [{ id: 'COLORBOOK-271', link: 'opened', status: 'resolved', fixed_by: 596 }] : [],
+  })
+  expect(summary([at('partly', true), at('partly', false), at('confirmed', false)]).map(p => p.text)).toEqual(['◐ 1 partly', '✓ 1 worked', '◐ 1 fixed'])
+})
+
+test('an issue link reads one way: opened and fixed by on the one that broke it, fixes from on the fix', async () => {
+  expect(issueLinkParts({ id: 'COLORBOOK-271', link: 'opened', status: 'resolved', fixed_by: 596 }))
+    .toEqual([{ text: 'opened ' }, { issue: 'COLORBOOK-271' }, { text: ' · fixed by ' }, { pull: 596 }])
+  expect(issueLinkParts({ id: 'COLORBOOK-271', link: 'opened', status: 'unresolved' })).toEqual([{ text: 'opened ' }, { issue: 'COLORBOOK-271' }])
+  expect(issueLinkParts({ id: 'COLORBOOK-12', link: 'found', status: 'archived' })).toEqual([{ text: 'found ' }, { issue: 'COLORBOOK-12' }, { text: ' · archived' }])
+  expect(issueLinkParts({ id: 'COLORBOOK-271', link: 'fixes', status: 'resolved', from: 593 }))
+    .toEqual([{ text: 'fixes ' }, { issue: 'COLORBOOK-271' }, { text: ' from ' }, { pull: 593 }])
+})
+
+test('an issue and another pull request open on the site, in the app the pull request was read from', async () => {
+  const pr = toPr(merged, { app: 'colorbook/production', org: 'org_abc', pull: 564, state: 'partly', deploys: [], checks: [] })
+  expect(linkedIssueUrl(pr, 'COLORBOOK-271', 'https://packrat.sh')).toBe('https://packrat.sh/orgs/org_abc/apps/colorbook/production/issues/COLORBOOK-271')
+  expect(linkedPullUrl(pr, 596, 'https://packrat.sh')).toBe('https://packrat.sh/orgs/org_abc/apps/colorbook/production/pulls/596')
+  expect(linkedIssueUrl({ ...pr, org: null }, 'COLORBOOK-271', 'https://packrat.sh')).toBeNull()
 })

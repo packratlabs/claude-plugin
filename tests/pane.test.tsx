@@ -344,3 +344,42 @@ test('a Bash command that is not gh pr create, or one that failed, asks nothing'
 
   expect(asked).toBe(0)
 })
+
+test('a settled pull request nests the issue its failed check opened under it, with what fixed it', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  let answered: object = shown
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(answered))
+    throw new Error(`unexpected ${argv}`)
+  })
+  on('ui.open', async () => ({ value: undefined }))
+  on('ui.panes', async () => ({ value: [{ id: 'packrat', title: 'Packrat', isShown: true, isFocused: true, isPlaced: true }] }))
+
+  await $.command.run({ command: 'packrat' })
+  await clock.settle()
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 80, placement: 'dock' } as never,
+  })
+  await pane.drawn()
+
+  answered = {
+    ...shown, state: 'partly', settled: true,
+    checks: [{ ...shown.checks[0]!, closed_at: '2026-11-07T14:16:00Z', result: 'failed', source: 'day_after', outcome: 'Old lists leave Aritzia out.' }],
+    issues: [{ id: 'COLORBOOK-271', link: 'opened', status: 'resolved', fixed_by: 596, check: 'chk_1' }],
+  }
+  await clock.advance(2 * 60 * 1000)
+  await clock.settle()
+  const drawn = JSON.stringify(await pane.drawn())
+  expect(drawn).toContain('◐ 1 fixed')
+  expect(drawn).not.toContain('1 partly')
+  expect(drawn).toContain('COLORBOOK-271')
+  expect(drawn).toContain('" · fixed by "')
+  expect(drawn).toContain('#","596')
+  expect(drawn).not.toContain('Old lists leave Aritzia out.')
+})
