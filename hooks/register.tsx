@@ -3,6 +3,7 @@ import type { Hook, Register } from 'claude-code'
 
 import {
   type Check,
+  type IssueLink,
   type IssueList,
   type Merged,
   type Pr,
@@ -23,7 +24,10 @@ import {
   issueDetails,
   issueSummary,
   issueTally,
+  issueLinkParts,
   issueUrl,
+  linkedIssueUrl,
+  linkedPullUrl,
   severityMark,
   summary,
   toPr,
@@ -325,6 +329,28 @@ export const register: Register = (on, options) => {
       }
       const ask = (n: number) => void $.prompt.fill({ text: `/packrat:ask how did PR ${n} do`, mode: 'replace' })
       const openPr = (url: string) => void $.process.run(['open', url], { timeoutMs: 10_000 })
+      // A pull request named on another's row opens its own row when the pane lists it, and its page when not.
+      const showPull = (from: Pr, n: number) => {
+        if (prs.some(pr => pr.number === n)) {
+          opened.set(n, true)
+          $.ui.invalidate('ui.render')
+        } else openPr(linkedPullUrl(from, n, site))
+      }
+
+      // An issue a pull request is linked to, its id and the other pull request as links.
+      const linkLine = (pr: Pr, link: IssueLink, rail: string) => (
+        <Box key={`link-${pr.number}-${link.link}-${link.id}`} flexDirection="row">
+          <Text dimColor>{rail}</Text>
+          {issueLinkParts(link).map((part, i) => {
+            if ('text' in part) return <Text key={`t-${i}`} dimColor>{part.text}</Text>
+            if ('issue' in part) {
+              const url = linkedIssueUrl(pr, part.issue, site)
+              return <Button key={`i-${i}`} plain onPress={() => url && openPr(url)}><Text color="suggestion">{part.issue}</Text></Button>
+            }
+            return <Button key={`p-${i}`} plain onPress={() => showPull(pr, part.pull)}><Text color="suggestion">#{part.pull}</Text></Button>
+          })}
+        </Box>
+      )
 
       // An open pull request's checks hang off a rail that ends at its buttons, so the block reads as one thing.
       // A thing the day-after review found is a failed check named by what should be true, marked as the review's, with
@@ -340,14 +366,19 @@ export const register: Register = (on, options) => {
               <Text>
                 <Text dimColor>│ </Text><Text color={mark.tone}>{mark.glyph}</Text> {fit(checkName(check), room)}{found && <Text dimColor>{REVIEW}</Text>} <Text dimColor>{when}</Text>
               </Text>
-              {found && check.outcome && (
+              {found && check.outcome && !pr.settled && (
                 <Text>
                   <Text dimColor>│ </Text>  {fit(check.outcome, Math.max(10, width - 6))}
                 </Text>
               )}
+              {pr.issues.filter(link => link.check === check.id).map(link => linkLine(pr, link, '│   ↳ '))}
             </Box>
           )
         })
+
+      // The issues no check of its own opened: the one its verdict opened, and the ones it fixes.
+      const otherLinks = (pr: Pr) =>
+        pr.issues.filter(link => !link.check || !pr.checks.some(check => check.id === link.check)).map(link => linkLine(pr, link, '│ '))
 
       const pullsBody = (
         <Box flexDirection="column">
@@ -374,12 +405,13 @@ export const register: Register = (on, options) => {
             return (
               <Box key={`row-${pr.number}`} flexDirection="column">
                 <Button key={`pr-${pr.number}`} plain onPress={() => toggle(pr.number)}>
-                  <Text color={v.tone}>{v.glyph}</Text> <Text bold={isOpen} dimColor={!isOpen && verdict(pr.state) === 'worked'}>#{pr.number} {fit(pr.title, width - 8).trimEnd()}</Text>
+                  <Text color={pr.settled ? 'subtle' : v.tone}>{v.glyph}</Text> <Text bold={isOpen} dimColor={!isOpen && (verdict(pr.state) === 'worked' || pr.settled)}>#{pr.number} {fit(pr.title, width - 8).trimEnd()}</Text>
                 </Button>
                 {isOpen && (
                   <Box flexDirection="column" marginBottom={1}>
                     {pr.checks.length === 0 && <Text dimColor>│ {NO_CHECKS}</Text>}
                     {checkLines(pr)}
+                    {otherLinks(pr)}
                     <Box flexDirection="row" gap={1}>
                       <Text dimColor>└</Text>
                       <Button key={`ask-${pr.number}`} label="Ask" dimColor onPress={() => ask(pr.number)} />

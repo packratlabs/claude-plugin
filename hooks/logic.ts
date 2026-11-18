@@ -27,13 +27,17 @@ export type Check = {
 
 export type Deploy = { deployed_at: string; verdict: string | null }
 
+// An issue a pull request opened, found already open, or fixes. Older servers send none.
+export type IssueLink = { id: string; link: 'opened' | 'found' | 'fixes'; status: string; fixed_by?: number; check?: string; from?: number }
+
 // analysed is false for an app Packrat does not verify, which a new app is until production reports: its first pull
 // request is verified all the same, and says so by the checks it declared.
-export type PullAnswer = { app: string; org?: string; pull: number; state: string | null; analysed?: boolean; deploys: Deploy[]; checks: Check[]; declared?: unknown[] }
+export type PullAnswer = { app: string; org?: string; pull: number; state: string | null; analysed?: boolean; deploys: Deploy[]; checks: Check[]; declared?: unknown[]; settled?: boolean; issues?: IssueLink[] }
 
 export type Merged = { number: number; title: string; url: string; mergedAt: string }
 
-export type Pr = Merged & { app: string | null; org: string | null; state: string | null; deployedAt: number | null; checks: Check[]; declared: number }
+// settled is a pull request that did not work with nothing it opened still open: a record, not something to do.
+export type Pr = Merged & { app: string | null; org: string | null; state: string | null; deployedAt: number | null; checks: Check[]; declared: number; settled: boolean; issues: IssueLink[] }
 
 export type Verdict = 'worked' | 'didnt' | 'partly' | 'pending' | 'none'
 export type Tone = 'success' | 'error' | 'warning' | 'suggestion' | 'subtle'
@@ -118,8 +122,13 @@ export function counts(checks: readonly Check[]): Counts {
 export function summary(prs: readonly Pr[]) {
   const parts: { text: string; tone: Tone }[] = []
   for (const v of ['didnt', 'partly', 'pending', 'worked'] as const) {
-    const n = prs.filter(pr => verdict(pr.state) === v).length
+    const n = prs.filter(pr => verdict(pr.state) === v && !pr.settled).length
     if (n > 0) parts.push({ text: `${VERDICTS[v].glyph} ${n} ${VERDICTS[v].label}`, tone: VERDICTS[v].tone })
+  }
+  const settled = prs.filter(pr => pr.settled)
+  if (settled.length > 0) {
+    const fixed = settled.every(pr => pr.issues.every(link => link.link === 'fixes' || link.fixed_by))
+    parts.push({ text: `${VERDICTS.partly.glyph} ${settled.length} ${fixed ? 'fixed' : 'settled'}`, tone: 'subtle' })
   }
   // An archived pull request has the same glyph, but only one no check settled is counted.
   const unverified = prs.filter(pr => pr.state === 'not_observable').length
@@ -129,8 +138,29 @@ export function summary(prs: readonly Pr[]) {
 
 export function toPr(merged: Merged, answer: PullAnswer | null): Pr {
   const first = answer?.deploys.map(d => Date.parse(d.deployed_at)).filter(t => !Number.isNaN(t)).sort((a, b) => a - b)[0]
-  return { ...merged, app: answer?.app ?? null, org: answer?.org ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [], declared: answer?.declared?.length ?? 0 }
+  return { ...merged, app: answer?.app ?? null, org: answer?.org ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [], declared: answer?.declared?.length ?? 0, settled: answer?.settled ?? false, issues: answer?.issues ?? [] }
 }
+
+// One line about an issue, in parts the pane draws as text and links, with a verb so it reads one way:
+// "opened COLORBOOK-271 · fixed by #596" on the pull request that broke it, "fixes COLORBOOK-271 from #593" on the fix.
+export type LinkPart = { text: string } | { issue: string } | { pull: number }
+
+export function issueLinkParts(link: IssueLink): LinkPart[] {
+  if (link.link === 'fixes') return [{ text: 'fixes ' }, { issue: link.id }, ...(link.from ? [{ text: ' from ' }, { pull: link.from }] : [])]
+  const head: LinkPart[] = [{ text: `${link.link} ` }, { issue: link.id }]
+  if (link.fixed_by) return [...head, { text: ' · fixed by ' }, { pull: link.fixed_by }]
+  return link.status === 'unresolved' ? head : [...head, { text: ` · ${link.status}` }]
+}
+
+// An issue's page on the site, from the app the pull request was read from.
+export function linkedIssueUrl(pr: Pr, id: string, site: string) {
+  const [service, env] = pr.app?.split('/') ?? []
+  if (pr.org === null || service === undefined || env === undefined) return null
+  return `${site.replace(/\/+$/, '')}/orgs/${pr.org}/apps/${encodeURIComponent(service)}/${encodeURIComponent(env)}/issues/${encodeURIComponent(id)}`
+}
+
+// Another pull request's verification page, in the same app.
+export const linkedPullUrl = (pr: Pr, number: number, site: string) => verificationUrl({ ...pr, number, url: pr.url.replace(/\d+$/, String(number)) }, site)
 
 // Packrat has a page for a pull request only once a recorded deploy shipped it; until then it has nothing to verify.
 export const deployed = (prs: readonly Pr[]) => prs.filter(pr => pr.deployedAt !== null)
