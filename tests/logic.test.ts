@@ -143,7 +143,7 @@ test('a pull request gh pr create just opened is read from what it printed, and 
 })
 
 test('a pull request that has not deployed says so, with the checks it declared', async () => {
-  const pr: Pr = { ...merged, app: null, org: null, state: null, deployedAt: null, checks: [], declared: 0 }
+  const pr: Pr = { ...merged, app: null, org: null, state: null, deployedAt: null, checks: [], declared: 0, settled: false, issues: [] }
   expect(waitingLine(pr)).toBe('waiting for deploy')
   expect(waitingLine({ ...pr, declared: 2 })).toBe('waiting for deploy · 2 checks')
   expect(waitingLine({ ...pr, checks: [check({})] })).toBe('waiting for deploy · 1 check')
