@@ -81,7 +81,10 @@ of each kind:
 - **Both** judge it once, on the first run where `seen` reaches `min_seen`: a measure. Give the number the claim
   needs, never "faster" or "the same".
 - **`min_seen`** is how large `seen` must be before a condition is judged. Default 1. A check that never reaches it
-  ends inconclusive: the code did not run enough to tell.
+  ends inconclusive: the code did not run enough to tell. **Size it from the traffic.** Before you choose it, count
+  the route or job over the last week with `packrat sql`, without the attribute the change adds (which counts 0
+  before the deploy), and choose a `min_seen` and `window` that traffic reaches comfortably: a page served about 300
+  times a day cannot reach 500 in `1d`.
 - **`window`** is how long after the deploy the check stays open: `10m`, `1h`, `1d`, up to `30d`. Default `1h`.
   Use the time the code needs to run enough, such as the next run of a daily job or a weekday's traffic.
 - **`at_end`** is the result when the window ends and nothing decided it. Default `passed` for a check with only
