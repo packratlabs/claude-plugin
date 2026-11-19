@@ -62,8 +62,9 @@ let isRefreshing = false
 let lastError: string | null = null
 // A row keeps the state it was last drawn in, so a verdict arriving does not close a row someone is reading.
 const opened = new Map<number, boolean>()
-let tab: 'pulls' | 'issues' = 'pulls'
-const TABS: [typeof tab, string][] = [['pulls', 'PR Verifications'], ['issues', 'Issues']]
+type Tab = 'pulls' | 'issues'
+let tab: Tab = 'pulls'
+const TABS: [Tab, string][] = [['pulls', 'PR Verifications'], ['issues', 'Issues']]
 let issues: IssueList | null = null
 let issuesCheckedAt = 0
 let isRefreshingIssues = false

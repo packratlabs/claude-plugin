@@ -1,3 +1,4 @@
+import type { CommandRunInput } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
 const deployedAt = Date.parse('2026-11-07T14:13:38Z')
@@ -7,11 +8,13 @@ const shown = {
   deploys: [{ deployed_at: new Date(deployedAt).toISOString(), verdict: '' }],
   checks: [{
     id: 'chk_1', title: 'The page still loads', what: 'GET /admin/affiliates returns 200.', due_at: '2026-11-07T14:15:07Z',
-    closed_at: null, result: '', accepted: '', source: 'follow_up', runs: [],
+    closed_at: null as string | null, result: '', accepted: '', source: 'follow_up', runs: [],
   }],
 }
 
 const answer = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
+const typed = (args = ''): CommandRunInput => ({ command: 'packrat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 } })
+const placed = { value: { isPlaced: true as const } }
 
 test('a pull request deployed minutes ago draws, with when it deployed', async ($, on) => {
   const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
@@ -25,9 +28,9 @@ test('a pull request deployed minutes ago draws, with when it deployed', async (
     if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(shown))
     throw new Error(`unexpected ${argv}`)
   })
-  on('ui.open', async () => ({ value: undefined }))
+  on('ui.open', async () => placed)
 
-  await $.command.run({ command: 'packrat' })
+  await $.command.run(typed())
   await clock.settle()
 
   const pane = await $.ui.mount({
@@ -60,9 +63,9 @@ test("a thing the day-after review found draws as a failed check marked review, 
     if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(reviewed))
     throw new Error(`unexpected ${argv}`)
   })
-  on('ui.open', async () => ({ value: undefined }))
+  on('ui.open', async () => placed)
 
-  await $.command.run({ command: 'packrat' })
+  await $.command.run(typed())
   await clock.settle()
 
   const pane = await $.ui.mount({
@@ -119,9 +122,9 @@ test('/packrat issues opens the Issues tab, asking for the app the pull requests
     }
     throw new Error(`unexpected ${argv}`)
   })
-  on('ui.open', async () => ({ value: undefined }))
+  on('ui.open', async () => placed)
 
-  await $.command.run({ command: 'packrat', args: 'issues' })
+  await $.command.run(typed('issues'))
   await clock.settle()
 
   const pane = await $.ui.mount({
@@ -149,11 +152,11 @@ test('a pane behind another tab asks Packrat nothing, and an old pending pull re
     }
     throw new Error(`unexpected ${argv}`)
   })
-  on('ui.open', async () => ({ value: undefined }))
+  on('ui.open', async () => placed)
   let isShown = true
   on('ui.panes', async () => ({ value: [{ id: 'packrat', title: 'Packrat', isShown, isFocused: isShown, isPlaced: true }] }))
 
-  await $.command.run({ command: 'packrat' })
+  await $.command.run(typed())
   await clock.settle()
   const first = reads
 
@@ -179,10 +182,10 @@ test('a pull request that opened by itself while live stays open once its verdic
     if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(answered))
     throw new Error(`unexpected ${argv}`)
   })
-  on('ui.open', async () => ({ value: undefined }))
+  on('ui.open', async () => placed)
   on('ui.panes', async () => ({ value: [{ id: 'packrat', title: 'Packrat', isShown: true, isFocused: true, isPlaced: true }] }))
 
-  await $.command.run({ command: 'packrat' })
+  await $.command.run(typed())
   await clock.settle()
   const pane = await $.ui.mount({
     plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
@@ -218,7 +221,7 @@ test('gh pr create in a repository Packrat verifies opens the pane, unfocused, o
   const opened: unknown[] = []
   on('ui.open', async (_$, e) => {
     opened.push(e)
-    return { value: undefined }
+    return placed
   })
   on('tool.call', () => ({ result: { stdout: `${created}\n`, stderr: '' } }))
 
@@ -250,11 +253,11 @@ test('a pull request this session opened is still waiting after the plugin reloa
     if (argv.endsWith('pr show 580 --json')) return answer(JSON.stringify(declared))
     throw new Error(`unexpected ${argv}`)
   })
-  on('ui.open', async () => ({ value: undefined }))
+  on('ui.open', async () => placed)
   // What the module wrote before the reload: its own variables are gone, and the session's state is not.
   on('state.get', () => ({ value: { value: { shape: 'created-1', value: [{ number: 580, title: 'Add a filter', url: created, mergedAt: '' }] }, version: 1 } }))
 
-  await $.command.run({ command: 'packrat' })
+  await $.command.run(typed())
   await clock.settle()
 
   const pane = await $.ui.mount({
@@ -283,7 +286,7 @@ test('the first pull request of a new app opens the pane once the hook has decla
   let opened = 0
   on('ui.open', async () => {
     opened++
-    return { value: undefined }
+    return placed
   })
   on('tool.call', () => ({ result: { stdout: `${created}\n`, stderr: '' } }))
 
@@ -314,7 +317,7 @@ test('gh pr create in a repository Packrat does not verify opens nothing, and as
   let opened = 0
   on('ui.open', async () => {
     opened++
-    return { value: undefined }
+    return placed
   })
   on('tool.call', () => ({ result: { stdout: `${created}\n`, stderr: '' } }))
 
@@ -357,10 +360,10 @@ test('a settled pull request nests the issue its failed check opened under it, w
     if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(answered))
     throw new Error(`unexpected ${argv}`)
   })
-  on('ui.open', async () => ({ value: undefined }))
+  on('ui.open', async () => placed)
   on('ui.panes', async () => ({ value: [{ id: 'packrat', title: 'Packrat', isShown: true, isFocused: true, isPlaced: true }] }))
 
-  await $.command.run({ command: 'packrat' })
+  await $.command.run(typed())
   await clock.settle()
   const pane = await $.ui.mount({
     plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
