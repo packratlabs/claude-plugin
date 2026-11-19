@@ -68,6 +68,7 @@ you rely on them.
 
 ## Checks
 
-If something can only be verified later, such as a job that runs tomorrow, create a check with
-`packrat check add`. Do not leave a reminder for the user instead. Run the check's query once with
-`packrat sql` before you create it, to confirm that it works.
+A check belongs to a pull request. If something a deployed pull request does can only be verified later,
+such as a job it changed that runs tomorrow, add a check to it with `packrat check add --pull <number>`.
+Do not leave a reminder for the user instead. Run the check's query once with `packrat sql` before you
+add it, to confirm that it works. Do not add a check without `--pull`.

@@ -1,176 +1,141 @@
 # Packrat for Claude Code
 
-The Packrat plugin for Claude Code gives Claude access to your app's production data in
-[Packrat](https://packrat.sh). Claude can use it to:
+[Packrat](https://packrat.sh) checks every pull request Claude opens in production and tells you which
+aren't working. When one falls short, it opens an issue for Claude to follow up on.
 
-- Report how a pull request performed after it was deployed, including the analyst's verdict.
-- Read Packrat links, such as a report linked from a Packrat email.
-- Query your traces and logs with SQL to investigate production issues.
-- Schedule a check that the analyst runs at a later time, with the result sent by email.
-- Declare the checks Packrat runs to verify each pull request after it deploys.
-- Show how the repository's pull requests did in production, in a pane beside the chat.
+1. **Claude opens a pull request with checks.** Before Claude runs `gh pr create`, it declares the pull
+   request's checks: what the change should do in production, such as a page getting faster or a job
+   writing its rows, and when to look. If a check needs telemetry your app doesn't send yet, Claude
+   adds it in the same pull request.
+2. **Packrat verifies it in production.** When the deploy that ships the pull request goes live, Packrat
+   runs each check against your production data. The result is the pull request's verification:
+   **Worked**, **Worked in part**, **Did not work** or **Not verified**. You see it in the `/packrat` pane
+   beside the chat, on the pull request's page on Packrat.sh, and in a Github comment Packrat posts on the pull
+   request.
+3. **Claude follows up.** When a pull request doesn't work, Packrat opens an issue. Run `/packrat:ask` with
+   the issue's ID, and Claude reads the exceptions, traces, logs and session replays behind it to find the
+   cause and open a fix.
 
-## Prerequisites
+Type `/packrat` to open the PR Verifications pane beside the chat. It lists the repository's recently
+deployed pull requests with their verification status:
 
-- [Claude Code](https://claude.com/claude-code)
-- A Packrat account with at least one app sending data
+```
+Packrat PR Verifications · shop/production
+◐ 1 worked in part  ◷ 1 pending  ✓ 3 worked
 
-## Install the plugin
+◐ #482 Make the cart page faster
+  ✓ The cart is faster
+  ✗ The checkout total is correct
+  [ Ask ] [ View PR ]  worked in part · 14m ago
+✓ #481 Retry failed webhook deliveries
+◷ #480 Export orders as CSV
+✓ #479 Bump rack to 3.2
+✓ #478 Show shipping estimates in the cart
+```
 
-Add the marketplace and install the plugin from within Claude Code:
+The plugin also lets Claude query your production data, so it can answer "why is checkout slow?" from
+what your app actually did.
+
+## Get started
+
+The plugin reads your app's data from Packrat, so you need a Packrat account and an app that sends data
+to it. Set both up from your app's repository:
+
+```sh
+curl -fsSL https://packrat.sh/setup | sh
+```
+
+The command installs the Packrat CLI and runs `packrat setup`, which signs you in, connects the
+repository to Packrat through GitHub, installs this plugin, and has Claude Code add Packrat to your app
+in a pull request. When that pull request deploys, Packrat has data and the plugin has something to read.
+
+To install the plugin on its own, find **packrat** in `/plugin` › **Discover**, or add Packrat's
+marketplace:
 
 ```
 /plugin marketplace add packratlabs/claude-plugin
 /plugin install packrat@packrat
 ```
 
-The plugin runs the [Packrat CLI](https://github.com/packratlabs/packrat-cli). If `packrat` is already
-on your `PATH`, the plugin uses that installation. Otherwise, it downloads the CLI on first use and
-verifies it against the release checksums.
-
-### Keep it up to date
-
-Claude Code updates a plugin from a marketplace outside Anthropic only when auto-update is on. Run
-`/plugin`, open **Marketplaces**, choose `packrat` and select **Enable auto-update**. The `packrat-rails`
-generator turns it on for a repository in `.claude/settings.json`.
-
-While auto-update is off, the plugin says at the start of a session when a newer version is out. It
-asks GitHub at most once a day. Update it with:
-
-```
-claude plugin update packrat@packrat
-```
-
-Then run `/reload-plugins` in Claude Code.
-
-## Authenticate
-
-Sign in from Claude Code:
+Then sign in, if `packrat setup` has not already signed you in:
 
 ```
 ! packrat login
 ```
 
-The command opens your browser to approve the sign-in. It stores an API key on your machine: in the
-macOS Keychain, or in `~/.config/packrat/credentials.json` on other platforms. Claude runs `packrat`
-commands with this key but does not have access to the key itself.
+## What you can ask
 
-In CI, set the `PACKRAT_API_KEY` environment variable instead.
+Claude uses the plugin when your request is about production. You don't need to run commands yourself.
 
-## Usage
+| You ask                                        | What Claude does                                                                  |
+| ---------------------------------------------- | --------------------------------------------------------------------------------- |
+| "How did PR 482 do?" or `/packrat:ask PR 482`  | Shows whether the pull request worked, with each check's result and its evidence. |
+| A pasted Packrat link                          | Reads the page and summarizes it.                                                 |
+| "Why is checkout slow?"                        | Queries your exceptions, traces and logs with `packrat sql`.                      |
+| "Look into SHOP-41." or `/packrat:ask SHOP-41` | Reads the issue and the data behind it, finds the cause and proposes a fix.       |
+| "SHOP-12 is fixed by the last deploy."         | Resolves the issue with `packrat issues resolve`, with your reason.               |
 
-Claude uses the plugin when your request involves production. You don't need to run commands
-directly. For example:
+## Pull request checks
 
-| Request | What Claude does |
-| --- | --- |
-| "How did PR 482 do?" or `/packrat:ask PR 482` | Shows the analyst's verdict for each deploy of the pull request, with the evidence and any pending checks. |
-| A pasted Packrat link | Reads the page with your API key and summarizes it. |
-| "Why is checkout slow?" | Queries your traces and logs with `packrat sql`. |
-| "Check that the cleanup job ran on Monday." | Schedules a check with `packrat check add`. The analyst emails the result. |
+The plugin changes one thing about how Claude works: before `gh pr create`, Claude drafts the checks for
+the branch. Each check says what the change should do in production, the telemetry SQL that shows it, and when to
+look. The `packrat:checks` skill tells Claude how to write them.
 
-### Pull request checks
+- **Before `gh pr create`**, the plugin asks Packrat to validate the draft. If there is no draft, or
+  Packrat refuses it, the plugin stops the command and tells Claude what to fix. A change production
+  cannot show, such as one to tests or docs, is declared with a reason instead of checks.
+- **After `gh pr create`**, the plugin declares the checks under the new pull request's number. They wait
+  for the deploy that ships it, then run against production until each one passes, fails or runs out of
+  time.
 
-Before Claude opens a pull request with `gh pr create`, the plugin requires a checks draft for the
-branch, in `.git/packrat/checks/<branch>.json`. Each check states what shows the change worked in
-production, the data that shows it, and how long after the deploy the result is expected. The
-`packrat:checks` skill tells Claude how to write one.
+The plugin never stops a pull request in a repository Packrat doesn't verify, or when it cannot reach
+Packrat.
 
-- **Before `gh pr create`**, the plugin validates the draft with `packrat pr checks set --dry-run`. If
-  there's no draft, or Packrat refuses it, the plugin blocks the command and tells Claude what to fix.
-- **After `gh pr create`**, the plugin reads the new pull request's URL and declares the draft with
-  `packrat pr checks set`. The checks wait until a deploy ships the pull request, then the analyst runs
-  them.
+A pull request **Worked** when every check passed, **Worked in part** when one failed and another passed,
+and **Did not work** when one failed and none passed. It is **Not verified** when no check could tell. A
+failed check opens an issue on Packrat.
 
-A repository Packrat doesn't verify, or a Packrat the CLI can't reach, never blocks a pull request.
-Declaring checks needs `packrat` 0.1.4 or later.
+## The PR Verifications pane
 
-### PR Verifications pane
+Type `/packrat` to open a pane that lists the repository's recently deployed pull requests and how each
+did in production. The mark before each pull request is its verification: `✓` Worked, `◐` Worked in part,
+`✗` Did not work, `◷` pending and `–` Not verified. Select one to list its checks. **Ask** puts a
+`/packrat:ask` prompt in the input for you to send, and **View PR** opens the pull request on Packrat. A
+pull request deployed in the last hour opens by itself.
 
-Type `/packrat` to open a pane that lists the repository's recently deployed pull requests and how
-each did in production:
+Press `2`, or type `/packrat issues`, for the app's open issues: its errors and the problems Packrat found
+on its own (marked `AI`), most severe first.
 
-```
-Packrat PR Verifications · colorbook/production
-◷ 4 pending  ✓ 7 worked
+The pane needs the [GitHub CLI](https://cli.github.com) (`gh`), signed in to the repository, and a Claude
+Code version that loads plugin modules. It is built on Claude Code's plugin module API, which is in early
+access and can change between releases.
 
-◷ #570 Send J.Crew and J.Crew Factory visits through CJ
-  deployed 48m ago
-  ? J.Crew visits go to CJ                                6 Nov
-  ◷ The CJ sync runs without errors                       in 14h 04m
-  [ Ask ] [ View PR ]
-✓ #566 Store black colorways from Quince bag lists
-✗ #564 Read Loft inventory through Scrapfly in one session per run
-```
+## What the plugin runs and sends
 
-The mark before each pull request is its verdict: `✓` worked, `✗` did not work, `◐` worked in part,
-`◷` pending and `–` not verified. Select a pull request to list its checks, each marked `✓` passed,
-`✗` failed, `⊘` excused (it failed, and the analyst says why the deploy still worked), `?` inconclusive,
-`◷` due, or `•` closed without a result. **Ask** puts a
-`/packrat:ask` prompt in the input for you to send, and **View PR** opens the pull request's page on
-Packrat. A merged pull request joins the list once Packrat records the deploy that shipped it,
-within seconds of the new version's first request to Packrat, so the pane shows it at its next read. A pull request deployed in the last hour opens by itself. The pane asks nothing until you type
-`/packrat`, and nothing while it is closed or behind another tab; it reads again when you bring it back. While it
-is on screen it checks every minute, but reads a pull request every minute only in the first hour after its
-deploy. After that a pending pull request is read every 5 minutes, since its verdict changes only when the analyst
-looks, about once an hour, and one with a verdict and no check still open every 15 minutes. **Refresh** reads
-everything at once.
+- **The CLI.** The plugin runs the open-source [Packrat CLI](https://github.com/packratlabs/packrat-cli).
+  If `packrat` is on your `PATH`, it uses that. Otherwise it downloads the CLI from GitHub on first use
+  and verifies it against the release checksums.
+- **Your key.** `packrat login` stores an API key in the macOS Keychain, or in
+  `~/.config/packrat/credentials.json` on other platforms. Claude runs `packrat` commands with the key but
+  does not read the key itself. In CI, set `PACKRAT_API_KEY` instead.
+- **What reaches Packrat.** The plugin talks to Packrat only through the CLI: the queries Claude runs, the
+  checks it drafts and the pages it reads.
+- **Hooks.** On each Bash command, the plugin looks for `gh pr create` and lets every other command
+  through untouched. At the start of a session, it asks GitHub at most once a day whether a newer version
+  is out.
 
-Click **Issues**, press `2` while the pane has focus, or type `/packrat issues`, for the **Issues** tab: the app's unresolved issues, error issues
-and AI-detected ones (marked `AI`), in the order of its Issues page on Packrat:
+## Updates
 
-```
-1:  PR Verifications   2: [ Issues ]                         shop/production
-──────────────────────────────────────────────────────────────────────────
-▲ 1 critical  ▲ 2 high  · 3 unrated
-
-▲ AI Gift card carts fail to pay                      new · 41 ev · 9 users
-▲ ActiveRecord::RangeError: PG::NumericValueOutOf…   regressed · 6 ev · 2 users
-  SHOP-12
-  Orders over $21M fail to save.
-  OrdersController#create
-  regressed · reaches people · 2 users · high
-  [ Ask ] [ View issue ]
-· NoMethodError: undefined method 'total' for nil     3 ev · 1 user
-```
-
-The mark is the severity the analyst's daily summary gave: red `▲` critical, yellow `▲` high, `·` unrated
-and `▽` low. Select an issue for its one-line summary; **Ask**
-puts a `/packrat:ask` prompt in the input and **View issue** opens it on Packrat. The pane reads only the
-tab you are looking at; click **PR Verifications** or press `1` to go back. The tab you are on is drawn in
-reverse.
-
-The pane shows only its latest error. Every error it meets is also kept, newest last, in
-`~/.config/packrat/pane.log`.
-
-The pane needs:
-
-- The [GitHub CLI](https://cli.github.com) (`gh`), signed in to the repository, to list merged pull
-  requests.
-- `packrat` 0.1.2 or later, and 0.1.5 or later for the Issues tab. Run `packrat update` if the pane says the
-  CLI is too old.
-- A Claude Code version that loads plugin modules. The pane is built on Claude Code's plugin module
-  API, which is in early access and can change between releases.
+A plugin installed from the directory updates itself. One installed from Packrat's marketplace updates
+only with auto-update on: run `/plugin`, open **Marketplaces**, choose `packrat` and select **Enable
+auto-update**. Until then, the plugin says at the start of a session when a newer version is out, and you
+update it with `claude plugin update packrat@packrat`, then `/reload-plugins`.
 
 ## Skills
 
-| Skill | Description |
-| --- | --- |
-| `packrat:ask` | The entry point to Packrat. Answers questions about production through the CLI: pull requests, Packrat links, SQL queries and checks. |
-| `packrat:checks` | Drafts the checks Packrat runs after a pull request deploys. |
+| Skill            | What it does                                                                              |
+| ---------------- | ----------------------------------------------------------------------------------------- |
+| `packrat:ask`    | Answers questions about production: pull requests, Packrat links, SQL queries and checks. |
+| `packrat:checks` | Drafts the checks Packrat runs after a pull request deploys.                              |
 
-## Develop the pane
-
-`script/preview` draws the pane in your terminal from production answers recorded once, so you see a
-change to `hooks/` in about a second, without restarting Claude Code or running a server.
-
-```sh
-script/preview --fetch            # record what packrat and gh answer for ../packrat
-script/preview --width 72         # draw PR Verifications
-script/preview --tab issues       # draw Issues
-script/preview --press pr-227     # press a button by its key first, such as a pull request's row
-```
-
-Run `--fetch` again for newer data. The recordings in `preview/recorded/` hold production data and are
-not committed. The drawing is close to Claude Code's but not identical, so check the pane in Claude
-Code before you ship a change.
+To work on the plugin itself, see [CONTRIBUTING.md](CONTRIBUTING.md).
