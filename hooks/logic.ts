@@ -97,10 +97,6 @@ export function rereadAfter(merged: Merged, answer: PullAnswer | null, now: numb
   return PENDING_MS
 }
 
-export function isLive(pr: Pr, now: number) {
-  return pr.deployedAt !== null && now - pr.deployedAt < LIVE_MS && verdict(pr.state) === 'pending'
-}
-
 export type Counts = { failed: number; excused: number; pending: number; passed: number; inconclusive: number }
 
 export const isExcused = (check: Check) => check.result === 'failed' && !!check.accepted

@@ -100,8 +100,7 @@ failed check opens an issue on Packrat.
 Type `/packrat` to open a pane that lists the repository's recently deployed pull requests and how each
 did in production. The mark before each pull request is its verification: `✓` Worked, `◐` Worked in part,
 `✗` Did not work, `◷` pending and `–` Not verified. Select one to list its checks. **Ask** puts a
-`/packrat:ask` prompt in the input for you to send, and **View PR** opens the pull request on Packrat. A
-pull request deployed in the last hour opens by itself.
+`/packrat:ask` prompt in the input for you to send, and **View PR** opens the pull request on Packrat.
 
 Press `2`, or type `/packrat issues`, for the app's open issues: its errors and the problems Packrat found
 on its own (marked `AI`), most severe first.
@@ -109,8 +108,9 @@ on its own (marked `AI`), most severe first.
 A row that changed since you last opened it is bold and marked **new**, and each tab counts its new rows,
 as in `PR Verifications (3)`. A pull request changes when it deploys, when a check gets a result and when
 its verdict lands; an issue when it opens, changes status or gets an update. Opening a row marks it seen,
-on every machine you use, and so does opening its page on Packrat. Inside an open pull request, each check
-whose result is new keeps its own **new** mark until you close the row. Run `packrat pr seen --all` or
+on every machine you use, and so does opening its page on Packrat. A row you have open when it changes is seen
+already. Inside an open pull request, each check whose result is new, whether it was new when you opened the
+row or arrived while it was open, keeps its own **new** mark until you close the row. Run `packrat pr seen --all` or
 `packrat issues seen --all` to mark a whole tab seen.
 
 The pane needs the [GitHub CLI](https://cli.github.com) (`gh`), signed in to the repository, and a Claude

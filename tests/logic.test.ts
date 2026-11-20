@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, issueLinkParts, linkedIssueUrl, linkedPullUrl, checkName, checkWhen, counts, createdPull, waitingLine, progress, deployed, isLive, isSettled, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, issueLinkParts, linkedIssueUrl, linkedPullUrl, checkName, checkWhen, counts, createdPull, waitingLine, progress, deployed, isSettled, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -61,14 +61,6 @@ test('a check with no title is named by its first sentence, less the pull reques
   expect(checkName(check({ title: '', what: 'PR #559 (1f443d6a): the 3 Nov 01:00 UTC category scrape read all 5 Quince bag lists (satchels). More.' })))
     .toBe('The 3 Nov 01:00 UTC category scrape read all 5 Quince bag lists (satchels)')
   expect(checkName(check({ title: null, what: '' }))).toBe('chk_1')
-})
-
-test('a pending pull request is live for its first hour after the deploy', async () => {
-  const answer = { app: 'colorbook/production', pull: 564, state: 'pending', deploys: [{ deployed_at: '2026-11-06T11:30:00Z', verdict: null }], checks: [] }
-  const pr: Pr = toPr(merged, answer)
-  expect(isLive(pr, now)).toBe(true)
-  expect(isLive(pr, now + 31 * 60 * 1000)).toBe(false)
-  expect(isLive({ ...pr, state: 'confirmed' }, now)).toBe(false)
 })
 
 test('the summary adds the verdicts up', async () => {
