@@ -23,6 +23,8 @@ export type Check = {
   min_seen?: number | null
   // 'failed' or 'broken' while it waits for the analyst to review it.
   review?: string | null
+  // Its result arrived since the person last opened its pull request. Only a person's own key gets it.
+  new?: boolean
 }
 
 export type Deploy = { deployed_at: string; verdict: string | null }
@@ -32,12 +34,12 @@ export type IssueLink = { id: string; link: 'opened' | 'found' | 'fixes'; status
 
 // analysed is false for an app Packrat does not verify, which a new app is until production reports: its first pull
 // request is verified all the same, and says so by the checks it declared.
-export type PullAnswer = { app: string; org?: string; pull: number; state: string | null; analysed?: boolean; deploys: Deploy[]; checks: Check[]; declared?: unknown[]; settled?: boolean; issues?: IssueLink[] }
+export type PullAnswer = { app: string; org?: string; pull: number; state: string | null; analysed?: boolean; deploys: Deploy[]; checks: Check[]; declared?: unknown[]; settled?: boolean; issues?: IssueLink[]; unread?: boolean }
 
 export type Merged = { number: number; title: string; url: string; mergedAt: string }
 
 // settled is a pull request that did not work with nothing it opened still open: a record, not something to do.
-export type Pr = Merged & { app: string | null; org: string | null; state: string | null; deployedAt: number | null; checks: Check[]; declared: number; settled: boolean; issues: IssueLink[] }
+export type Pr = Merged & { app: string | null; org: string | null; state: string | null; deployedAt: number | null; checks: Check[]; declared: number; settled: boolean; issues: IssueLink[]; unread: boolean }
 
 export type Verdict = 'worked' | 'didnt' | 'partly' | 'pending' | 'none'
 export type Tone = 'success' | 'error' | 'warning' | 'suggestion' | 'subtle'
@@ -138,7 +140,7 @@ export function summary(prs: readonly Pr[]) {
 
 export function toPr(merged: Merged, answer: PullAnswer | null): Pr {
   const first = answer?.deploys.map(d => Date.parse(d.deployed_at)).filter(t => !Number.isNaN(t)).sort((a, b) => a - b)[0]
-  return { ...merged, app: answer?.app ?? null, org: answer?.org ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [], declared: answer?.declared?.length ?? 0, settled: answer?.settled ?? false, issues: answer?.issues ?? [] }
+  return { ...merged, app: answer?.app ?? null, org: answer?.org ?? null, state: answer?.state ?? null, deployedAt: first ?? null, checks: answer?.checks ?? [], declared: answer?.declared?.length ?? 0, settled: answer?.settled ?? false, issues: answer?.issues ?? [], unread: answer?.unread ?? false }
 }
 
 // One line about an issue, in parts the pane draws as text and links, with a verb so it reads one way:
@@ -299,6 +301,8 @@ export type Issue = {
   errors?: string[]
   pull?: number | null
   reasons?: string[]
+  // It opened, changed status or got an analyst update since the person last opened it.
+  unread?: boolean
 }
 
 export type IssueList = { app: string; org?: string; period: string; issues: Issue[] }
@@ -323,7 +327,8 @@ export function issueSummary(issues: readonly Issue[]) {
 
 // What the row says on its right: the counts, and the substatus when it is news.
 export function issueTally(issue: Issue) {
-  const tag = issue.substatus === 'new' || issue.substatus === 'regressed' || issue.substatus === 'escalating' ? `${issue.substatus} · ` : ''
+  // Not `new`: the row's chip says that, and means new to the person rather than to the app.
+  const tag = issue.substatus === 'regressed' || issue.substatus === 'escalating' ? `${issue.substatus} · ` : ''
   const users = issue.users > 0 ? ` · ${issue.users} ${issue.users === 1 ? 'user' : 'users'}` : ''
   return `${tag}${issue.events} ev${users}`
 }
@@ -355,3 +360,10 @@ export function issueUrl(issue: Issue, list: { app: string; org?: string }, env:
   const app = `${encodeURIComponent(service)}/${encodeURIComponent(issue.environment || env)}`
   return `${site.replace(/\/+$/, '')}/orgs/${list.org}/apps/${app}/issues/${encodeURIComponent(issue.id)}`
 }
+
+// A tab's label, with how many of its rows changed since the person last opened them.
+export const tabLabel = (label: string, unread: number) => (unread > 0 ? `${label} (${unread})` : label)
+
+// The chip on a row that changed since the person last opened it, and the blank that keeps titles in line without one.
+export const NEW_CHIP = ' new '
+export const NO_CHIP = ' '.repeat(NEW_CHIP.length)

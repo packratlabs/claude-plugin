@@ -386,3 +386,43 @@ test('a settled pull request nests the issue its failed check opened under it, w
   expect(drawn).toContain('#","596')
   expect(drawn).not.toContain('Old lists leave Aritzia out.')
 })
+
+test('a changed pull request draws a new chip and a count on its tab, and opening it marks it seen', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt + 3 * 60 * 60 * 1000 })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  const passed = { ...shown.checks[0]!, closed_at: '2026-11-07T14:16:00Z', result: 'passed', new: true }
+  const marked: string[] = []
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify({ ...shown, state: 'confirmed', unread: true, checks: [passed] }))
+    if (argv.endsWith('pr seen 572')) {
+      marked.push(argv)
+      return answer('Marked #572 in colorbook/production seen.\n')
+    }
+    throw new Error(`unexpected ${argv}`)
+  })
+  on('ui.open', async () => placed)
+
+  await $.command.run(typed())
+  await clock.settle()
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 72, placement: 'dock' } as never,
+  })
+  const before = JSON.stringify(await pane.drawn())
+  expect(before).toContain('PR Verifications (1)')
+  expect(before).toContain('" new "')
+  expect(marked).toEqual([])
+
+  await (pane as unknown as { press: (target: { key: string }) => Promise<void> }).press({ key: 'pr-572' })
+  await clock.settle()
+  const after = JSON.stringify(await pane.drawn())
+  expect(marked).toHaveLength(1)
+  expect(after).not.toContain('PR Verifications (1)')
+  // The check whose result was new keeps its chip while the row is open.
+  expect(after).toContain('" new "')
+  expect(after).toContain('The page still loads')
+})

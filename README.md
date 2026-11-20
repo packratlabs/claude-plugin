@@ -106,6 +106,13 @@ pull request deployed in the last hour opens by itself.
 Press `2`, or type `/packrat issues`, for the app's open issues: its errors and the problems Packrat found
 on its own (marked `AI`), most severe first.
 
+A row that changed since you last opened it is bold and marked **new**, and each tab counts its new rows,
+as in `PR Verifications (3)`. A pull request changes when it deploys, when a check gets a result and when
+its verdict lands; an issue when it opens, changes status or gets an update. Opening a row marks it seen,
+on every machine you use, and so does opening its page on Packrat. Inside an open pull request, each check
+whose result is new keeps its own **new** mark until you close the row. Run `packrat pr seen --all` or
+`packrat issues seen --all` to mark a whole tab seen.
+
 The pane needs the [GitHub CLI](https://cli.github.com) (`gh`), signed in to the repository, and a Claude
 Code version that loads plugin modules. It is built on Claude Code's plugin module API, which is in early
 access and can change between releases.
