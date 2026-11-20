@@ -276,6 +276,13 @@ export function verificationUrl(pr: Pr, site: string) {
   return `${site.replace(/\/+$/, '')}/orgs/${org}/apps/${app}/pulls/${pr.number}`
 }
 
+// A check's own page on the site, or nothing when the org or app is not known.
+export function checkUrl(pr: Pr, check: Check, site: string) {
+  const [service, env] = pr.app?.split('/') ?? []
+  if (pr.org === null || service === undefined || env === undefined) return null
+  return `${site.replace(/\/+$/, '')}/orgs/${pr.org}/apps/${encodeURIComponent(service)}/${encodeURIComponent(env)}/checks/${encodeURIComponent(check.id)}`
+}
+
 export const NO_CHECKS = 'No checks.'
 
 // One row of `packrat issues --json`: an error issue, or one the analyst raised (`kind` `detected`).

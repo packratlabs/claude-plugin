@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, issueLinkParts, linkedIssueUrl, linkedPullUrl, checkName, checkWhen, counts, createdPull, waitingLine, progress, deployed, isSettled, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkUrl, issueLinkParts, linkedIssueUrl, linkedPullUrl, checkName, checkWhen, counts, createdPull, waitingLine, progress, deployed, isSettled, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -75,6 +75,13 @@ test('the pane lists only pull requests a deploy has shipped', async () => {
   const waiting = toPr({ ...merged, number: 565 }, { app: 'colorbook/production', pull: 565, state: null, deploys: [], checks: [] })
   const unknown = toPr({ ...merged, number: 566 }, null)
   expect(deployed([shipped, waiting, unknown]).map(pr => pr.number)).toEqual([564])
+})
+
+test('a check links to its own page on the site, or nowhere without an org', async () => {
+  const check = { id: 'chk_1' } as Check
+  const pr = toPr(merged, { app: 'colorbook/production', org: 'org_j9m7lj1jp5fg', pull: 564, state: 'pending', deploys: [], checks: [check] })
+  expect(checkUrl(pr, check, 'http://localhost:3100/')).toBe('http://localhost:3100/orgs/org_j9m7lj1jp5fg/apps/colorbook/production/checks/chk_1')
+  expect(checkUrl({ ...pr, org: null }, check, 'https://packrat.sh')).toBeNull()
 })
 
 test('View PR opens the verification page on the site, or GitHub without an org', async () => {
