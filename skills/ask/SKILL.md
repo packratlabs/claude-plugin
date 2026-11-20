@@ -72,3 +72,12 @@ A check belongs to a pull request. If something a deployed pull request does can
 such as a job it changed that runs tomorrow, add a check to it with `packrat check add --pull <number>`.
 Do not leave a reminder for the user instead. Run the check's query once with `packrat sql` before you
 add it, to confirm that it works. Do not add a check without `--pull`.
+
+## When Packrat gets in your way
+
+If a `packrat` command fails in a way its message does not explain, answers something you can show is wrong,
+or Packrat has no command for something the task needs, report it to the Packrat team with `packrat feedback`
+instead of asking the user to write to them. Run `packrat help feedback` first. Put what you ran, the error or
+answer, what you expected and any fix you would suggest on stdin, and leave out keys, passwords and tokens.
+Send one report a task, and only when Packrat got in your way: not to report progress or when the task went
+well. Then tell the user what you sent, and carry on with the task or tell them what is blocked.
