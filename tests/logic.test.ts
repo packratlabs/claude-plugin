@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkUrl, issueLinkParts, linkedIssueUrl, linkedPullUrl, checkName, checkWhen, counts, createdPull, waitingLine, progress, deployed, isSettled, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkUrl, fixedBy, issueLinkParts, shownVerdict, linkedIssueUrl, linkedPullUrl, checkName, checkWhen, counts, createdPull, waitingLine, progress, deployed, isSettled, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -149,12 +149,16 @@ test('a pull request that has not deployed says so, with the checks it declared'
   expect(waitingLine({ ...pr, checks: [check({}), check({ id: 'chk_2' })] })).toBe('waiting for deploy · 2 checks')
 })
 
-test('a pull request that did not work and whose issue is fixed is counted as fixed, not as needing you', async () => {
-  const at = (state: string, settled: boolean) => toPr(merged, {
+test('a pull request that did not work and that another fixed counts as worked; one closed by hand as closed', async () => {
+  const at = (state: string, settled: boolean, fixed_by?: number) => toPr(merged, {
     app: 'colorbook/production', pull: 1, state, deploys: [{ deployed_at: '2026-11-01T00:00:00Z', verdict: null }], checks: [], settled,
-    issues: settled ? [{ id: 'COLORBOOK-271', link: 'opened', status: 'resolved', fixed_by: 596 }] : [],
+    issues: settled ? [{ id: 'COLORBOOK-271', link: 'did not fix', status: 'resolved', ...(fixed_by ? { fixed_by } : {}) }] : [],
   })
-  expect(summary([at('partly', true), at('partly', false), at('confirmed', false)]).map(p => p.text)).toEqual(['◐ 1 partly', '✓ 1 worked', '◐ 1 fixed'])
+  const fixed = at('refuted', true, 604)
+  expect(fixedBy(fixed)).toEqual([604])
+  expect(shownVerdict(fixed)).toBe('worked')
+  expect(summary([fixed, at('partly', false), at('confirmed', false), at('refuted', true)]).map(p => p.text))
+    .toEqual(['◐ 1 partly', '✓ 2 worked', '✗ 1 closed'])
 })
 
 test('an issue link reads one way: opened and fixed by on the one that broke it, fixes from on the fix', async () => {

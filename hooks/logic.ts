@@ -30,7 +30,7 @@ export type Check = {
 export type Deploy = { deployed_at: string; verdict: string | null }
 
 // An issue a pull request opened, found already open, or fixes. Older servers send none.
-export type IssueLink = { id: string; link: 'opened' | 'found' | 'fixes'; status: string; fixed_by?: number; check?: string; from?: number }
+export type IssueLink = { id: string; link: 'opened' | 'found' | 'fixes' | 'did not fix'; status: string; fixed_by?: number; check?: string; from?: number }
 
 // analysed is false for an app Packrat does not verify, which a new app is until production reports: its first pull
 // request is verified all the same, and says so by the checks it declared.
@@ -117,17 +117,29 @@ export function counts(checks: readonly Check[]): Counts {
   return out
 }
 
+// A pull request that did not work, whose every issue another pull request then fixed: the pull requests that fixed
+// them. The pane counts it as worked and says what fixed it when it is opened.
+export function fixedBy(pr: Pr): number[] | null {
+  if (!pr.settled) return null
+  const own = pr.issues.filter(link => link.link !== 'fixes')
+  if (own.length === 0 || !own.every(link => link.fixed_by)) return null
+  return [...new Set(own.map(link => link.fixed_by as number))]
+}
+
+// The verdict the pane shows: worked for one fixed later.
+export const shownVerdict = (pr: Pr): Verdict => (fixedBy(pr) ? 'worked' : verdict(pr.state))
+
+// Settled with an issue closed by hand rather than fixed by a pull request: a record, nothing to do.
+export const isClosed = (pr: Pr) => pr.settled && !fixedBy(pr)
+
 export function summary(prs: readonly Pr[]) {
   const parts: { text: string; tone: Tone }[] = []
   for (const v of ['didnt', 'partly', 'pending', 'worked'] as const) {
-    const n = prs.filter(pr => verdict(pr.state) === v && !pr.settled).length
+    const n = prs.filter(pr => shownVerdict(pr) === v && !isClosed(pr)).length
     if (n > 0) parts.push({ text: `${VERDICTS[v].glyph} ${n} ${VERDICTS[v].label}`, tone: VERDICTS[v].tone })
   }
-  const settled = prs.filter(pr => pr.settled)
-  if (settled.length > 0) {
-    const fixed = settled.every(pr => pr.issues.every(link => link.link === 'fixes' || link.fixed_by))
-    parts.push({ text: `${VERDICTS.partly.glyph} ${settled.length} ${fixed ? 'fixed' : 'settled'}`, tone: 'subtle' })
-  }
+  const closed = prs.filter(isClosed).length
+  if (closed > 0) parts.push({ text: `${VERDICTS.didnt.glyph} ${closed} closed`, tone: 'subtle' })
   // An archived pull request has the same glyph, but only one no check settled is counted.
   const unverified = prs.filter(pr => pr.state === 'not_observable').length
   if (unverified > 0) parts.push({ text: `${VERDICTS.none.glyph} ${unverified} ${VERDICTS.none.label}`, tone: VERDICTS.none.tone })
