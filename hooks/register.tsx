@@ -20,7 +20,6 @@ import {
   fit,
   NO_CHECKS,
   NEW_CHIP,
-  NO_CHIP,
   tabLabel,
   rereadAfter,
   isLive,
@@ -367,8 +366,7 @@ export const register: Register = (on, options) => {
       }
       if (repo === null) return <Text dimColor>{checkedRepo ? 'Not in a GitHub repository gh can see.' : 'Reading Packrat…'}</Text>
 
-      // The chip column is drawn only while a row in the tab is new.
-      const chipColumn = { pulls: prs.some(pr => pr.unread), issues: (issues?.issues ?? []).some(issue => issue.unread) }
+      const chip = <Text backgroundColor="suggestion" color="inverseText" bold>{NEW_CHIP}</Text>
 
       const toggle = (n: number) => {
         if (opened.get(n)) closePull(n)
@@ -413,7 +411,7 @@ export const register: Register = (on, options) => {
           return (
             <Box key={`check-${check.id}`} flexDirection="column">
               <Text>
-                <Text dimColor>│ </Text>{isNew && <Text backgroundColor="suggestion" color="inverseText" bold>{NEW_CHIP}</Text>}{isNew ? ' ' : ''}<Text color={mark.tone}>{mark.glyph}</Text> {fit(checkName(check), room)}{found && <Text dimColor>{REVIEW}</Text>} <Text dimColor>{when}</Text>
+                <Text dimColor>│ </Text><Text color={mark.tone}>{mark.glyph}</Text> {isNew && chip}{isNew ? ' ' : ''}{fit(checkName(check), room)}{found && <Text dimColor>{REVIEW}</Text>} <Text dimColor>{when}</Text>
               </Text>
               {found && check.outcome && !pr.settled && (
                 <Text>
@@ -448,15 +446,14 @@ export const register: Register = (on, options) => {
           ))}
           {prs.map(pr => {
             const v = VERDICTS[verdict(pr.state)]
-            const chip = chipColumn.pulls ? (pr.unread ? <Text backgroundColor="suggestion" color="inverseText" bold>{NEW_CHIP}</Text> : NO_CHIP) : null
-            const titleWidth = width - 8 - (chipColumn.pulls ? NEW_CHIP.length + 1 : 0)
+            const titleWidth = width - 8 - String(pr.number).length - (pr.unread ? NEW_CHIP.length + 1 : 0)
             // A pull request first drawn while live opens by itself, and stays open once it is not.
             if (!opened.has(pr.number)) opened.set(pr.number, isLive(pr, now))
             const isOpen = opened.get(pr.number)!
             return (
               <Box key={`row-${pr.number}`} flexDirection="column">
                 <Button key={`pr-${pr.number}`} plain onPress={() => toggle(pr.number)}>
-                  {chip}{chip !== null ? ' ' : ''}<Text color={pr.settled ? 'subtle' : v.tone}>{v.glyph}</Text> <Text bold={pr.unread} dimColor={!isOpen && !pr.unread && (verdict(pr.state) === 'worked' || pr.settled)}>#{pr.number} {fit(pr.title, titleWidth).trimEnd()}</Text>
+                  <Text color={pr.settled ? 'subtle' : v.tone}>{v.glyph}</Text> <Text bold={pr.unread} dimColor={!isOpen && !pr.unread && (verdict(pr.state) === 'worked' || pr.settled)}>#{pr.number}</Text> {pr.unread && chip}{pr.unread ? ' ' : ''}<Text bold={pr.unread} dimColor={!isOpen && !pr.unread && (verdict(pr.state) === 'worked' || pr.settled)}>{fit(pr.title, titleWidth + String(pr.number).length).trimEnd()}</Text>
                 </Button>
                 {isOpen && (
                   <Box flexDirection="column" marginBottom={1}>
@@ -505,13 +502,12 @@ export const register: Register = (on, options) => {
             const mark = severityMark(issue)
             const isAi = issue.kind === 'detected'
             const tally = issueTally(issue)
-            const chip = chipColumn.issues ? (issue.unread ? <Text backgroundColor="suggestion" color="inverseText" bold>{NEW_CHIP}</Text> : NO_CHIP) : null
-            const titleWidth = Math.max(10, width - tally.length - (isAi ? 3 : 0) - 6 - (chipColumn.issues ? NEW_CHIP.length + 1 : 0))
+            const titleWidth = Math.max(10, width - tally.length - (isAi ? 3 : 0) - 6 - (issue.unread ? NEW_CHIP.length + 1 : 0))
             const url = issues && issueUrl(issue, { app: issues.app, org: issues.org || (prs.find(pr => pr.org !== null)?.org ?? undefined) }, env, site)
             return (
               <Box key={`issue-row-${issue.id}`} flexDirection="column">
                 <Button key={`issue-${issue.id}`} plain onPress={() => toggleIssue(issue.id)}>
-                  {chip}{chip !== null ? ' ' : ''}<Text color={mark.tone}>{mark.glyph}</Text> {isAi && <Text color="suggestion">AI </Text>}
+                  <Text color={mark.tone}>{mark.glyph}</Text> {issue.unread && chip}{issue.unread ? ' ' : ''}{isAi && <Text color="suggestion">AI </Text>}
                   <Text bold={issue.unread === true}>{fit(issue.title.replace(/\s+/g, ' '), titleWidth)}</Text> <Text dimColor>{tally}</Text>
                 </Button>
                 {openIssues.has(issue.id) && (
