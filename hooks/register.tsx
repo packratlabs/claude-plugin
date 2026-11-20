@@ -221,10 +221,9 @@ async function refreshIssues($: Api) {
   $.ui.invalidate('ui.render')
   try {
     if (knownApp() === null) await (pulling ?? refresh($))
-    const [service, env] = knownApp()?.split('/') ?? []
+    const app = knownApp()
     const argv = [cli, 'issues', '--json', '--limit', String(ISSUES_LISTED)]
-    if (service) argv.push('--app', service)
-    if (env) argv.push('--environment', env)
+    if (app) argv.push('--app', app)
     const listed = await $.process.run(argv, { cwd: root, timeoutMs: 30_000 })
     if (listed.exitCode !== 0) {
       const said = listed.stderr.trim().split('\n')[0] ?? `exit ${listed.exitCode}`

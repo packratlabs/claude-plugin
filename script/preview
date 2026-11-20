@@ -46,7 +46,7 @@ if $fetch; then
     echo "script/preview: no recorded pull request names an app, so there are no issues to ask for." >&2
     exit 1
   fi
-  packrat issues --json --limit 25 --app "${app%%/*}" --environment "${app##*/}" > "$recorded/issues.json"
+  packrat issues --json --limit 25 --app "$app" > "$recorded/issues.json"
   date +%s > "$recorded/at"
   echo "Recorded $(jq '.issues | length' "$recorded/issues.json") issues and $(ls "$recorded/pulls" | wc -l | tr -d ' ') pull requests for $app."
   exit 0
