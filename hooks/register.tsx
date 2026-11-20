@@ -19,6 +19,9 @@ import {
   deployed,
   fit,
   NO_CHECKS,
+  NEW_CHIP,
+  NO_CHIP,
+  tabLabel,
   rereadAfter,
   isLive,
   issueDetails,
@@ -72,6 +75,12 @@ let issuesError: string | null = null
 let pulling: Promise<void> | null = null
 let caughtUpAt = 0
 const openIssues = new Set<string>()
+// The pull requests the person opened, as against ones that opened by themselves while live: only these are seen.
+const openedByHand = new Set<number>()
+// The checks of an open pull request whose results were new when it was opened, so their chips stay while it is open.
+const freshChecks = new Map<number, Set<string>>()
+// Once a tab has had a new row, it keeps the chip column, so titles do not move as the last one is read.
+const chipColumn = { pulls: false, issues: false }
 // Answers that will not change soon, so each poll asks Packrat only about the pull requests still in play.
 const kept = new Map<number, { answer: PullAnswer; until: number }>()
 let isStarted = false
@@ -120,6 +129,39 @@ async function readPull($: Api, number: number): Promise<PullAnswer | null> {
   return answer
 }
 
+// Marks a row seen as the person opens it. A CLI without `seen` fails, which costs a log line and nothing else.
+async function markSeen($: Api, kind: 'pr' | 'issues', id: string) {
+  const ran = await $.process.run([cli, kind, 'seen', id], { cwd: root, timeoutMs: 30_000 })
+  if (ran.exitCode !== 0) {
+    void log($, `${cli} ${kind} seen ${id}: ${ran.stderr.trim().split('\n')[0] ?? `exit ${ran.exitCode}`}`)
+    return
+  }
+  if (kind === 'pr') {
+    const number = Number(id)
+    const read = (pr: Pr) => ({ ...pr, unread: false, checks: pr.checks.map(check => ({ ...check, new: false })) })
+    prs = prs.map(pr => (pr.number === number ? read(pr) : pr))
+    const held = kept.get(number)
+    if (held) held.answer = { ...held.answer, unread: false, checks: held.answer.checks.map(check => ({ ...check, new: false })) }
+  } else if (issues) {
+    issues = { ...issues, issues: issues.issues.map(issue => (issue.id === id ? { ...issue, unread: false } : issue)) }
+  }
+  $.ui.invalidate('ui.render')
+}
+
+function openPull($: Api, number: number) {
+  opened.set(number, true)
+  openedByHand.add(number)
+  const pr = prs.find(row => row.number === number)
+  freshChecks.set(number, new Set(pr?.checks.filter(check => check.new).map(check => check.id) ?? []))
+  if (pr?.unread) void markSeen($, 'pr', String(number))
+}
+
+function closePull(number: number) {
+  opened.set(number, false)
+  openedByHand.delete(number)
+  freshChecks.delete(number)
+}
+
 function refresh($: Api) {
   pulling ??= refreshPulls($).finally(() => {
     pulling = null
@@ -161,6 +203,8 @@ async function refreshPulls($: Api) {
     const declared = await Promise.all(opened.map(pr => readPull($, pr.number)))
     waiting = opened.map((pr, i) => toPr(pr, declared[i] ?? null))
     checkedAt = await $.clock.now()
+    // A change that arrives while the person has the row open, they see.
+    for (const pr of prs) if (pr.unread && openedByHand.has(pr.number)) void markSeen($, 'pr', String(pr.number))
   } catch (error) {
     fail($, `refresh failed: ${String(error)}`)
   } finally {
@@ -191,6 +235,7 @@ async function refreshIssues($: Api) {
     }
     issues = JSON.parse(listed.stdout) as IssueList
     issuesError = null
+    for (const issue of issues.issues) if (issue.unread && openIssues.has(issue.id)) void markSeen($, 'issues', issue.id)
     issuesCheckedAt = await $.clock.now()
   } catch (error) {
     issuesError = `issues refresh failed: ${String(error)}`
@@ -324,8 +369,12 @@ export const register: Register = (on, options) => {
       }
       if (repo === null) return <Text dimColor>{checkedRepo ? 'Not in a GitHub repository gh can see.' : 'Reading Packrat…'}</Text>
 
+      if (prs.some(pr => pr.unread)) chipColumn.pulls = true
+      if (issues?.issues.some(issue => issue.unread)) chipColumn.issues = true
+
       const toggle = (n: number) => {
-        opened.set(n, !opened.get(n))
+        if (opened.get(n)) closePull(n)
+        else openPull($, n)
         $.ui.invalidate('ui.render')
       }
       const ask = (n: number) => void $.prompt.fill({ text: `/packrat:ask how did PR ${n} do`, mode: 'replace' })
@@ -333,7 +382,7 @@ export const register: Register = (on, options) => {
       // A pull request named on another's row opens its own row when the pane lists it, and its page when not.
       const showPull = (from: Pr, n: number) => {
         if (prs.some(pr => pr.number === n)) {
-          opened.set(n, true)
+          openPull($, n)
           $.ui.invalidate('ui.render')
         } else openPr(linkedPullUrl(from, n, site))
       }
@@ -361,11 +410,12 @@ export const register: Register = (on, options) => {
           const mark = checkGlyph(check)
           const when = checkWhen(check, now)
           const found = check.source === 'day_after' && check.result === 'failed'
-          const room = Math.max(10, width - 6 - WHEN_WIDTH - (found ? REVIEW.length : 0))
+          const isNew = check.new === true || (freshChecks.get(pr.number)?.has(check.id) ?? false)
+          const room = Math.max(10, width - 6 - WHEN_WIDTH - (found ? REVIEW.length : 0) - (isNew ? NEW_CHIP.length + 1 : 0))
           return (
             <Box key={`check-${check.id}`} flexDirection="column">
               <Text>
-                <Text dimColor>│ </Text><Text color={mark.tone}>{mark.glyph}</Text> {fit(checkName(check), room)}{found && <Text dimColor>{REVIEW}</Text>} <Text dimColor>{when}</Text>
+                <Text dimColor>│ </Text>{isNew && <Text backgroundColor="suggestion" color="inverseText" bold>{NEW_CHIP}</Text>}{isNew ? ' ' : ''}<Text color={mark.tone}>{mark.glyph}</Text> {fit(checkName(check), room)}{found && <Text dimColor>{REVIEW}</Text>} <Text dimColor>{when}</Text>
               </Text>
               {found && check.outcome && !pr.settled && (
                 <Text>
@@ -400,13 +450,15 @@ export const register: Register = (on, options) => {
           ))}
           {prs.map(pr => {
             const v = VERDICTS[verdict(pr.state)]
+            const chip = chipColumn.pulls ? (pr.unread ? <Text backgroundColor="suggestion" color="inverseText" bold>{NEW_CHIP}</Text> : NO_CHIP) : null
+            const titleWidth = width - 8 - (chipColumn.pulls ? NEW_CHIP.length + 1 : 0)
             // A pull request first drawn while live opens by itself, and stays open once it is not.
             if (!opened.has(pr.number)) opened.set(pr.number, isLive(pr, now))
             const isOpen = opened.get(pr.number)!
             return (
               <Box key={`row-${pr.number}`} flexDirection="column">
                 <Button key={`pr-${pr.number}`} plain onPress={() => toggle(pr.number)}>
-                  <Text color={pr.settled ? 'subtle' : v.tone}>{v.glyph}</Text> <Text bold={isOpen} dimColor={!isOpen && (verdict(pr.state) === 'worked' || pr.settled)}>#{pr.number} {fit(pr.title, width - 8).trimEnd()}</Text>
+                  {chip}{chip !== null ? ' ' : ''}<Text color={pr.settled ? 'subtle' : v.tone}>{v.glyph}</Text> <Text bold={pr.unread} dimColor={!isOpen && !pr.unread && (verdict(pr.state) === 'worked' || pr.settled)}>#{pr.number} {fit(pr.title, titleWidth).trimEnd()}</Text>
                 </Button>
                 {isOpen && (
                   <Box flexDirection="column" marginBottom={1}>
@@ -429,7 +481,10 @@ export const register: Register = (on, options) => {
 
       const toggleIssue = (id: string) => {
         if (openIssues.has(id)) openIssues.delete(id)
-        else openIssues.add(id)
+        else {
+          openIssues.add(id)
+          if (listed.find(issue => issue.id === id)?.unread) void markSeen($, 'issues', id)
+        }
         $.ui.invalidate('ui.render')
       }
       const askIssue = (id: string) => void $.prompt.fill({ text: `/packrat:ask what is going on with ${id}`, mode: 'replace' })
@@ -452,13 +507,14 @@ export const register: Register = (on, options) => {
             const mark = severityMark(issue)
             const isAi = issue.kind === 'detected'
             const tally = issueTally(issue)
-            const titleWidth = Math.max(10, width - tally.length - (isAi ? 3 : 0) - 6)
+            const chip = chipColumn.issues ? (issue.unread ? <Text backgroundColor="suggestion" color="inverseText" bold>{NEW_CHIP}</Text> : NO_CHIP) : null
+            const titleWidth = Math.max(10, width - tally.length - (isAi ? 3 : 0) - 6 - (chipColumn.issues ? NEW_CHIP.length + 1 : 0))
             const url = issues && issueUrl(issue, { app: issues.app, org: issues.org || (prs.find(pr => pr.org !== null)?.org ?? undefined) }, env, site)
             return (
               <Box key={`issue-row-${issue.id}`} flexDirection="column">
                 <Button key={`issue-${issue.id}`} plain onPress={() => toggleIssue(issue.id)}>
-                  <Text color={mark.tone}>{mark.glyph}</Text> {isAi && <Text color="suggestion">AI </Text>}
-                  <Text bold={openIssues.has(issue.id)}>{fit(issue.title.replace(/\s+/g, ' '), titleWidth)}</Text> <Text dimColor>{tally}</Text>
+                  {chip}{chip !== null ? ' ' : ''}<Text color={mark.tone}>{mark.glyph}</Text> {isAi && <Text color="suggestion">AI </Text>}
+                  <Text bold={issue.unread === true}>{fit(issue.title.replace(/\s+/g, ' '), titleWidth)}</Text> <Text dimColor>{tally}</Text>
                 </Button>
                 {openIssues.has(issue.id) && (
                   <Box flexDirection="column" marginBottom={1}>
@@ -480,16 +536,18 @@ export const register: Register = (on, options) => {
 
       // Claude Code draws each tab as `N:  label `, and the row sets them and the app name two apart.
       const app = knownApp() ?? repo ?? ''
-      const tabsWidth = TABS.reduce((n, [, label]) => n + label.length + 5, TABS.length * 2)
+      const unread = { pulls: prs.filter(pr => pr.unread).length, issues: listed.filter(issue => issue.unread).length }
+      const labels = TABS.map(([key, label]) => [key, tabLabel(label, unread[key]), unread[key] > 0] as const)
+      const tabsWidth = labels.reduce((n, [, label]) => n + label.length + 5, TABS.length * 2)
 
       const isBusy = tab === 'issues' ? isRefreshingIssues : isRefreshing
 
       return (
         <Box flexDirection="column">
           <Box flexDirection="row" gap={2}>
-            {TABS.map(([key, label], i) => (
+            {labels.map(([key, label, hasNew], i) => (
               <Button key={`tab-${key}`} plain hotkey={String(i + 1)} onPress={() => void show($, key)}>
-                {tab === key ? <Text backgroundColor="suggestion" color="inverseText" bold> {label} </Text> : <Text dimColor> {label} </Text>}
+                {tab === key ? <Text backgroundColor="suggestion" color="inverseText" bold> {label} </Text> : <Text dimColor={!hasNew} bold={hasNew}> {label} </Text>}
               </Button>
             ))}
             <Text dimColor wrap="truncate-end">{' '.repeat(Math.max(0, width - tabsWidth - app.length))}{app}</Text>
