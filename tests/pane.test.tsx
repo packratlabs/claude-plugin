@@ -416,11 +416,16 @@ test('a changed pull request draws a new chip and a count on its tab, and openin
   on('session.root', async () => ({ value: '/repo' }))
   const passed = { ...shown.checks[0]!, closed_at: '2026-11-07T14:16:00Z', result: 'passed', new: true }
   const marked: string[] = []
+  const opened: string[] = []
   on('process.run', async (_$, e) => {
     const argv = e.argv.join(' ')
     if (argv.startsWith('gh repo view')) return answer('a/b\n')
     if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
-    if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify({ ...shown, state: 'confirmed', unread: true, checks: [passed] }))
+    if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify({ ...shown, org: 'org_abc', state: 'confirmed', unread: true, checks: [passed] }))
+    if (e.argv[0] === 'open') {
+      opened.push(e.argv[1]!)
+      return answer('')
+    }
     if (argv.endsWith('pr seen 572')) {
       marked.push(argv)
       return answer('Marked #572 in colorbook/production seen.\n')
@@ -448,4 +453,9 @@ test('a changed pull request draws a new chip and a count on its tab, and openin
   // The check whose result was new keeps its chip while the row is open.
   expect(after).toContain('" new "')
   expect(after).toContain('The page still loads')
+
+  await (pane as unknown as { press: (target: { key: string }) => Promise<void> }).press({ key: `check-${passed.id}` })
+  await clock.settle()
+  expect(opened).toEqual([`https://packrat.sh/orgs/org_abc/apps/colorbook/production/checks/${passed.id}`])
+  expect(JSON.stringify(await pane.drawn())).not.toContain('" new "')
 })

@@ -17,6 +17,7 @@ import {
   createdPull,
   wrap,
   deployed,
+  checkUrl,
   fit,
   NO_CHECKS,
   NEW_CHIP,
@@ -384,6 +385,13 @@ export const register: Register = (on, options) => {
         } else openPr(linkedPullUrl(from, n, site))
       }
 
+      // Opening a check's page is reading it, so its `new` chip goes without waiting for the row to close.
+      const openCheck = (pr: Pr, check: Check, url: string) => {
+        freshChecks.get(pr.number)?.delete(check.id)
+        openPr(url)
+        $.ui.invalidate('ui.render')
+      }
+
       // An issue a pull request is linked to, its id and the other pull request as links.
       const linkLine = (pr: Pr, link: IssueLink, rail: string) => (
         <Box key={`link-${pr.number}-${link.link}-${link.id}`} flexDirection="row">
@@ -409,11 +417,15 @@ export const register: Register = (on, options) => {
           const found = check.source === 'day_after' && check.result === 'failed'
           const isNew = check.new === true || (freshChecks.get(pr.number)?.has(check.id) ?? false)
           const room = Math.max(10, width - 6 - WHEN_WIDTH - (found ? REVIEW.length : 0) - (isNew ? NEW_CHIP.length + 1 : 0))
+          const url = checkUrl(pr, check, site)
+          const name = <Text>{fit(checkName(check), room)}</Text>
           return (
-            <Box key={`check-${check.id}`} flexDirection="column">
-              <Text>
-                <Text dimColor>│ </Text><Text color={mark.tone}>{mark.glyph}</Text> {isNew && chip}{isNew ? ' ' : ''}{fit(checkName(check), room)}{found && <Text dimColor>{REVIEW}</Text>} <Text dimColor>{when}</Text>
-              </Text>
+            <Box key={`check-row-${check.id}`} flexDirection="column">
+              <Box flexDirection="row">
+                <Text><Text dimColor>│ </Text><Text color={mark.tone}>{mark.glyph}</Text> {isNew && chip}{isNew ? ' ' : ''}</Text>
+                {url ? <Button key={`check-${check.id}`} plain onPress={() => openCheck(pr, check, url)}>{name}</Button> : name}
+                <Text>{found && <Text dimColor>{REVIEW}</Text>} <Text dimColor>{when}</Text></Text>
+              </Box>
               {found && check.outcome && !pr.settled && (
                 <Text>
                   <Text dimColor>│ </Text>  {fit(check.outcome, Math.max(10, width - 6))}
