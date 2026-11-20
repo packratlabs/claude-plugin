@@ -364,6 +364,5 @@ export function issueUrl(issue: Issue, list: { app: string; org?: string }, env:
 // A tab's label, with how many of its rows changed since the person last opened them.
 export const tabLabel = (label: string, unread: number) => (unread > 0 ? `${label} (${unread})` : label)
 
-// The chip on a row that changed since the person last opened it, and the blank that keeps titles in line without one.
+// The chip after the number of a row that changed since the person last opened it.
 export const NEW_CHIP = ' new '
-export const NO_CHIP = ' '.repeat(NEW_CHIP.length)
