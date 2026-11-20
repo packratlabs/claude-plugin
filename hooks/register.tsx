@@ -79,8 +79,6 @@ const openIssues = new Set<string>()
 const openedByHand = new Set<number>()
 // The checks of an open pull request whose results were new when it was opened, so their chips stay while it is open.
 const freshChecks = new Map<number, Set<string>>()
-// Once a tab has had a new row, it keeps the chip column, so titles do not move as the last one is read.
-const chipColumn = { pulls: false, issues: false }
 // Answers that will not change soon, so each poll asks Packrat only about the pull requests still in play.
 const kept = new Map<number, { answer: PullAnswer; until: number }>()
 let isStarted = false
@@ -369,8 +367,8 @@ export const register: Register = (on, options) => {
       }
       if (repo === null) return <Text dimColor>{checkedRepo ? 'Not in a GitHub repository gh can see.' : 'Reading Packrat…'}</Text>
 
-      if (prs.some(pr => pr.unread)) chipColumn.pulls = true
-      if (issues?.issues.some(issue => issue.unread)) chipColumn.issues = true
+      // The chip column is drawn only while a row in the tab is new.
+      const chipColumn = { pulls: prs.some(pr => pr.unread), issues: (issues?.issues ?? []).some(issue => issue.unread) }
 
       const toggle = (n: number) => {
         if (opened.get(n)) closePull(n)
