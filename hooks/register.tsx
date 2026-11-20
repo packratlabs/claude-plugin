@@ -22,7 +22,6 @@ import {
   NEW_CHIP,
   tabLabel,
   rereadAfter,
-  isLive,
   issueDetails,
   issueSummary,
   issueTally,
@@ -62,8 +61,7 @@ let waiting: Pr[] = []
 let checkedAt = 0
 let isRefreshing = false
 let lastError: string | null = null
-// A row keeps the state it was last drawn in, so a verdict arriving does not close a row someone is reading.
-const opened = new Map<number, boolean>()
+const openPulls = new Set<number>()
 type Tab = 'pulls' | 'issues'
 let tab: Tab = 'pulls'
 const TABS: [Tab, string][] = [['pulls', 'PR Verifications'], ['issues', 'Issues']]
@@ -74,9 +72,8 @@ let issuesError: string | null = null
 let pulling: Promise<void> | null = null
 let caughtUpAt = 0
 const openIssues = new Set<string>()
-// The pull requests the person opened, as against ones that opened by themselves while live: only these are seen.
-const openedByHand = new Set<number>()
-// The checks of an open pull request whose results were new when it was opened, so their chips stay while it is open.
+// The checks of an open pull request whose results were new when it was opened or arrived while it was open, so their
+// chips stay until it is closed.
 const freshChecks = new Map<number, Set<string>>()
 // Answers that will not change soon, so each poll asks Packrat only about the pull requests still in play.
 const kept = new Map<number, { answer: PullAnswer; until: number }>()
@@ -146,16 +143,14 @@ async function markSeen($: Api, kind: 'pr' | 'issues', id: string) {
 }
 
 function openPull($: Api, number: number) {
-  opened.set(number, true)
-  openedByHand.add(number)
+  openPulls.add(number)
   const pr = prs.find(row => row.number === number)
   freshChecks.set(number, new Set(pr?.checks.filter(check => check.new).map(check => check.id) ?? []))
   if (pr?.unread) void markSeen($, 'pr', String(number))
 }
 
 function closePull(number: number) {
-  opened.set(number, false)
-  openedByHand.delete(number)
+  openPulls.delete(number)
   freshChecks.delete(number)
 }
 
@@ -201,7 +196,13 @@ async function refreshPulls($: Api) {
     waiting = opened.map((pr, i) => toPr(pr, declared[i] ?? null))
     checkedAt = await $.clock.now()
     // A change that arrives while the person has the row open, they see.
-    for (const pr of prs) if (pr.unread && openedByHand.has(pr.number)) void markSeen($, 'pr', String(pr.number))
+    for (const pr of prs) {
+      if (!pr.unread || !openPulls.has(pr.number)) continue
+      const fresh = freshChecks.get(pr.number) ?? new Set<string>()
+      for (const check of pr.checks) if (check.new) fresh.add(check.id)
+      freshChecks.set(pr.number, fresh)
+      void markSeen($, 'pr', String(pr.number))
+    }
   } catch (error) {
     fail($, `refresh failed: ${String(error)}`)
   } finally {
@@ -369,7 +370,7 @@ export const register: Register = (on, options) => {
       const chip = <Text backgroundColor="suggestion" color="inverseText" bold>{NEW_CHIP}</Text>
 
       const toggle = (n: number) => {
-        if (opened.get(n)) closePull(n)
+        if (openPulls.has(n)) closePull(n)
         else openPull($, n)
         $.ui.invalidate('ui.render')
       }
@@ -447,9 +448,7 @@ export const register: Register = (on, options) => {
           {prs.map(pr => {
             const v = VERDICTS[verdict(pr.state)]
             const titleWidth = width - 8 - String(pr.number).length - (pr.unread ? NEW_CHIP.length + 1 : 0)
-            // A pull request first drawn while live opens by itself, and stays open once it is not.
-            if (!opened.has(pr.number)) opened.set(pr.number, isLive(pr, now))
-            const isOpen = opened.get(pr.number)!
+            const isOpen = openPulls.has(pr.number)
             return (
               <Box key={`row-${pr.number}`} flexDirection="column">
                 <Button key={`pr-${pr.number}`} plain onPress={() => toggle(pr.number)}>

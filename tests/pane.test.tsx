@@ -15,6 +15,11 @@ const shown = {
 const answer = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } })
 const typed = (args = ''): CommandRunInput => ({ command: 'packrat', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 } })
 const placed = { value: { isPlaced: true as const } }
+type Pressable = { press: (target: { key: string }) => Promise<void> }
+const openRow = async (pane: unknown, clock: { settle: () => Promise<void> }) => {
+  await (pane as Pressable).press({ key: 'pr-572' })
+  await clock.settle()
+}
 
 test('a pull request deployed minutes ago draws, with when it deployed', async ($, on) => {
   const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
@@ -37,6 +42,7 @@ test('a pull request deployed minutes ago draws, with when it deployed', async (
     plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
     props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 60, placement: 'dock' } as never,
   })
+  await openRow(pane, clock)
   const drawn = JSON.stringify(await pane.drawn())
   expect(drawn).toContain('"deployed ","4m"," ago"')
   expect(drawn).not.toContain('first look')
@@ -72,6 +78,7 @@ test("a thing the day-after review found draws as a failed check marked review, 
     plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
     props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 80, placement: 'dock' } as never,
   })
+  await openRow(pane, clock)
   const drawn = JSON.stringify(await pane.drawn())
   expect(drawn).toContain('Rails routes still answer 304 Not Modified')
   expect(drawn).toContain('" review"')
@@ -95,7 +102,7 @@ test('a pane open across a reload starts again by itself, with no /packrat', asy
     plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
     props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 60, placement: 'dock' } as never,
   })
-  await clock.settle()
+  await openRow(pane, clock)
   const drawn = JSON.stringify(await pane.drawn())
   expect(drawn).toContain('"deployed ","4m"," ago"')
   expect(drawn).not.toContain('first look')
@@ -170,16 +177,21 @@ test('a pane behind another tab asks Packrat nothing, and an old pending pull re
   expect(reads).toBe(first + 1)
 })
 
-test('a pull request that opened by itself while live stays open once its verdict arrives', async ($, on) => {
+test('a pull request deployed minutes ago draws closed and new, and a result that arrives while it is open keeps its chip on the check', async ($, on) => {
   const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
   mock.env(on, { HOME: '/home/dev' })
   on('session.root', async () => ({ value: '/repo' }))
-  let answered = shown
+  let answered: object = { ...shown, unread: true }
+  const marked: string[] = []
   on('process.run', async (_$, e) => {
     const argv = e.argv.join(' ')
     if (argv.startsWith('gh repo view')) return answer('a/b\n')
     if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
     if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(answered))
+    if (argv.endsWith('pr seen 572')) {
+      marked.push(argv)
+      return answer('Marked #572 in colorbook/production seen.\n')
+    }
     throw new Error(`unexpected ${argv}`)
   })
   on('ui.open', async () => placed)
@@ -191,13 +203,24 @@ test('a pull request that opened by itself while live stays open once its verdic
     plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
     props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 60, placement: 'dock' } as never,
   })
-  expect(JSON.stringify(await pane.drawn())).toContain('The page still loads')
+  const closed = JSON.stringify(await pane.drawn())
+  expect(closed).not.toContain('The page still loads')
+  expect(closed).toContain('" new "')
 
-  answered = { ...shown, state: 'confirmed', checks: [{ ...shown.checks[0]!, closed_at: '2026-11-07T14:16:00Z', result: 'passed' }] }
+  await openRow(pane, clock)
+  const opened = JSON.stringify(await pane.drawn())
+  expect(marked).toHaveLength(1)
+  expect(opened).toContain('The page still loads')
+  expect(opened).not.toContain('" new "')
+
+  answered = { ...shown, state: 'confirmed', unread: true, checks: [{ ...shown.checks[0]!, closed_at: '2026-11-07T14:16:00Z', result: 'passed', new: true }] }
   await clock.advance(2 * 60 * 1000)
   await clock.settle()
   const drawn = JSON.stringify(await pane.drawn())
+  expect(marked).toHaveLength(2)
   expect(drawn).toContain('worked')
+  expect(drawn).not.toContain('PR Verifications (1)')
+  expect(drawn).toContain('" new "')
   expect(drawn).toContain('The page still loads')
 })
 
@@ -369,7 +392,7 @@ test('a settled pull request nests the issue its failed check opened under it, w
     plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
     props: { title: 'Packrat PR Verifications', isFocused: true, bodyColumns: 80, placement: 'dock' } as never,
   })
-  await pane.drawn()
+  await openRow(pane, clock)
 
   answered = {
     ...shown, state: 'partly', settled: true,
