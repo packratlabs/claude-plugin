@@ -113,6 +113,9 @@ If a check is still refused after two attempts, stop changing it. Send it in the
 the pull request's page lists it, and Packrat records it so the skill can be improved. Tell the user which check
 you dropped and why.
 
+If a refusal is wrong, or tells you to do something that does not fix it, report it with `packrat feedback`
+(`packrat help feedback`) once you have worked around it or stopped.
+
 If the change fixes a Packrat issue, also write `Fixes <ID>` (for example `Fixes SHOP-41`) in the pull
 request's description, one line for each issue. Packrat resolves it when the deploy goes live.
 
