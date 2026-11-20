@@ -26,7 +26,10 @@ import {
   issueDetails,
   issueSummary,
   issueTally,
+  fixedBy,
+  isClosed,
   issueLinkParts,
+  shownVerdict,
   issueUrl,
   linkedIssueUrl,
   linkedPullUrl,
@@ -457,16 +460,27 @@ export const register: Register = (on, options) => {
             </Box>
           ))}
           {prs.map(pr => {
-            const v = VERDICTS[verdict(pr.state)]
+            const v = VERDICTS[shownVerdict(pr)]
+            const quiet = shownVerdict(pr) === 'worked' || isClosed(pr)
+            const fixers = fixedBy(pr)
             const titleWidth = width - 8 - String(pr.number).length - (pr.unread ? NEW_CHIP.length + 1 : 0)
             const isOpen = openPulls.has(pr.number)
             return (
               <Box key={`row-${pr.number}`} flexDirection="column">
                 <Button key={`pr-${pr.number}`} plain onPress={() => toggle(pr.number)}>
-                  <Text color={pr.settled ? 'subtle' : v.tone}>{v.glyph}</Text> <Text bold={pr.unread} dimColor={!isOpen && !pr.unread && (verdict(pr.state) === 'worked' || pr.settled)}>#{pr.number}</Text> {pr.unread && chip}{pr.unread ? ' ' : ''}<Text bold={pr.unread} dimColor={!isOpen && !pr.unread && (verdict(pr.state) === 'worked' || pr.settled)}>{fit(pr.title, titleWidth + String(pr.number).length).trimEnd()}</Text>
+                  <Text color={isClosed(pr) ? 'subtle' : v.tone}>{v.glyph}</Text> <Text bold={pr.unread} dimColor={!isOpen && !pr.unread && quiet}>#{pr.number}</Text> {pr.unread && chip}{pr.unread ? ' ' : ''}<Text bold={pr.unread} dimColor={!isOpen && !pr.unread && quiet}>{fit(pr.title, titleWidth + String(pr.number).length).trimEnd()}</Text>
                 </Button>
                 {isOpen && (
                   <Box flexDirection="column" marginBottom={1}>
+                    {fixers && (
+                      <Box key={`fixed-${pr.number}`} flexDirection="row">
+                        <Text dimColor>│ Didn't work · fixed by </Text>
+                        {fixers.flatMap((number, i) => [
+                          ...(i > 0 ? [<Text key={`comma-${number}`} dimColor>, </Text>] : []),
+                          <Button key={`fixer-${pr.number}-${number}`} plain onPress={() => showPull(pr, number)}><Text color="suggestion">#{number}</Text></Button>,
+                        ])}
+                      </Box>
+                    )}
                     {pr.checks.length === 0 && <Text dimColor>│ {NO_CHECKS}</Text>}
                     {checkLines(pr)}
                     {otherLinks(pr)}
