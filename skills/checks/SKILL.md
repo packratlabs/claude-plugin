@@ -20,6 +20,15 @@ Write the draft to `$(git rev-parse --path-format=absolute --git-common-dir)/pac
 where `<branch>` is `git branch --show-current`. The file is inside `.git`, so it is never committed.
 Create the directory if it does not exist. When the hook stops `gh pr create`, it names the exact path.
 
+In a git worktree, your file tools cannot write to that directory, because it is outside the worktree. Write
+the draft to a file inside the worktree or your scratch space, then let the CLI keep it:
+
+```bash
+packrat pr checks draft --file <your draft>
+```
+
+It prints the path it wrote. Do not copy the file there another way.
+
 ## What to check
 
 Write one check for each thing the change does, in the developer's terms: a filter is used, a job writes rows, a

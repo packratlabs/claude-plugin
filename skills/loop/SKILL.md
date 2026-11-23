@@ -13,7 +13,8 @@ its check failed in production, and ends it. An ending is a fix pull request, or
 A person merges every pull request. You never do.
 
 Use the `packrat` CLI for all Packrat data. `packrat help queue` lists the queue's commands. If `packrat queue`
-is not a command, the CLI is too old: ask the user to run `! packrat update`, and stop.
+or `packrat pr checks draft` is not a command, the CLI is too old: ask the user to run `! packrat update`, and
+stop.
 
 ## Before the first item
 
@@ -96,7 +97,11 @@ as soon as you report them, so choose one only when the numbers you measured sho
   that it fails.
 - Run only the test files that cover the change, and only if the worktree was set up.
 - Draft the pull request's checks with the `packrat:checks` skill. Restate the failed check as one of them,
-  with the same numbers, so the fix is judged by what failed.
+  with the same numbers, so the fix is judged by what failed. You are in a worktree, so keep the draft with
+  `packrat pr checks draft --file <your draft>`, on the fix's branch, then validate it with
+  `packrat pr checks set --dry-run --file <the path it printed>`.
+- If a write, a hook or a command is refused, do not find another way around it. End the item as
+  `needs-person`, and say in the note what was refused and where the branch is.
 - Push the branch and open the pull request with `gh pr create`. In the description, say what failed, the
   cause with the numbers you measured, and the change. Name the pull request the fix follows. Add
   `Fixes <ID>` for each unresolved issue the item lists, one line each.
