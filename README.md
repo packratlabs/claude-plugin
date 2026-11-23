@@ -130,7 +130,7 @@ Everything the loop does is in a log on your computer, at `.git/packrat/loop.log
                          The 4 s target assumed 32 query threads, and production ran at 8.
 ```
 
-The loop needs version 0.1.32 or later of the Packrat CLI. Run `packrat update` to get it.
+The loop needs version 0.1.33 or later of the Packrat CLI. Run `packrat update` to get it.
 
 ## The PR Verifications pane
 
