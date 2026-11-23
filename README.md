@@ -95,6 +95,43 @@ A pull request **Worked** when every check passed, **Worked in part** when one f
 and **Did not work** when one failed and none passed. It is **Not verified** when no check could tell. A
 failed check opens an issue on Packrat.
 
+## The loop
+
+A loop is a Claude Code session that works the pull requests that failed in production, so you don't have
+to. It takes one failed pull request at a time from Packrat's queue, finds out why its check failed, and
+ends it. Start one in a terminal tab of its own, in a worktree, so it never touches the checkout you work
+in:
+
+```sh
+claude --worktree packloop
+```
+
+Then type `/packrat:loop`. To work specific pull requests and stop, name them: `/packrat:loop 482 490`.
+
+The loop ends each pull request one of five ways:
+
+| Ending | What happens |
+| --- | --- |
+| Fix | Claude opens a pull request on a `packrat/<number>` branch, with its own checks. You review and merge it. |
+| Fixed already | A later commit or pull request fixed it. Nothing else changes. |
+| Excuse the check | The change did what it was for and the check's target was wrong. Packrat excuses the check, with Claude's reason, and works the verdict out again. |
+| Replace the check | The check measured the wrong thing. Packrat excuses it and runs the check Claude wrote in its place. |
+| Needs a person | Claude hands it back with what it found. |
+
+Claude never merges a pull request, and never runs migrations, a server or a deploy. When the queue is
+empty, the loop waits for the next pull request to fail. `packrat queue list` shows what waits.
+
+Everything the loop does is in a log on your computer, at `.git/packrat/loop.log` in the repository. Run
+`packrat queue log` to read it:
+
+```
+2026-11-23 14:02  took   #324  Read R2 through httplib in query sessions
+2026-11-23 14:05  ended  #324  excuse the check · excused chk_34hpg1xi10ko · now worked
+                         The 4 s target assumed 32 query threads, and production ran at 8.
+```
+
+The loop needs version 0.1.32 or later of the Packrat CLI. Run `packrat update` to get it.
+
 ## The PR Verifications pane
 
 Type `/packrat` to open a pane that lists the repository's recently deployed pull requests and how each
