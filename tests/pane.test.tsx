@@ -177,6 +177,47 @@ test('a pane behind another tab asks Packrat nothing, and an old pending pull re
   expect(reads).toBe(first + 1)
 })
 
+test('a repository with no app connected draws the step that sets it up, and asks Packrat one question a poll', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  const asked: string[] = []
+  let connected = false
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    asked.push(argv.replace(/^\S+\/bin\/packrat /, 'packrat '))
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (connected && argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(shown))
+    if (connected && argv.includes('issues --json')) return answer(JSON.stringify({ app: 'b', org: 'org_a', issues: [] }))
+    const said = 'packrat: no app is connected to a/b in org_a (Acme).'
+    return { value: { exitCode: 3, stdout: '', stderr: said, isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  on('ui.open', async () => placed)
+  on('ui.panes', async () => ({ value: [{ id: 'packrat', title: 'Packrat', isShown: true, isFocused: true, isPlaced: true }] }))
+
+  await $.command.run(typed())
+  await clock.settle()
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat', isFocused: true, bodyColumns: 80, placement: 'dock' } as never,
+  })
+  const drawn = JSON.stringify(await pane.drawn())
+  expect(drawn).toContain('Packrat is not set up for ')
+  expect(drawn).toContain('Ask Claude to set up Packrat in this app')
+  expect(drawn).not.toContain('No deployed pull requests yet.')
+  expect(drawn).not.toContain('no app is connected')
+
+  asked.length = 0
+  await clock.advance(60 * 1000)
+  expect(asked).toEqual(['packrat issues --json --limit 1'])
+
+  connected = true
+  await clock.advance(60 * 1000)
+  expect(asked).toContain('packrat pr show 572 --json')
+  expect(JSON.stringify(await pane.drawn())).not.toContain('Packrat is not set up')
+})
+
 test('a pull request deployed minutes ago draws closed and new, and a result that arrives while it is open keeps its chip on the check', async ($, on) => {
   const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
   mock.env(on, { HOME: '/home/dev' })
@@ -304,6 +345,7 @@ test('the first pull request of a new app opens the pane once the hook has decla
     if (argv.startsWith('gh pr view 580')) return answer('Set up Packrat\n')
     // The app has only its development data, and the hook declares the checks after the first question.
     if (argv.endsWith('pr show 580 --json')) return answer(JSON.stringify({ ...declared, app: 'shop/development', analysed: false, declared: ++asked > 2 ? declared.declared : [] }))
+    if (argv.endsWith('issues --json --limit 1')) return answer(JSON.stringify({ app: 'shop', org: 'org_a', issues: [] }))
     throw new Error(`unexpected ${argv}`)
   })
   let opened = 0

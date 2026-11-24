@@ -49,6 +49,9 @@ The command installs the Packrat CLI and runs `packrat setup`, which signs you i
 repository to Packrat through GitHub, installs this plugin, and has Claude Code add Packrat to your app
 in a pull request. When that pull request deploys, Packrat has data and the plugin has something to read.
 
+With the plugin already installed, you can ask Claude Code to set up Packrat in the repository instead.
+The `packrat:setup` skill runs `packrat setup` and does each step it names.
+
 To install the plugin on its own, find **packrat** in `/plugin` › **Discover**, or add Packrat's
 marketplace:
 
@@ -181,5 +184,6 @@ update it with `claude plugin update packrat@packrat`, then `/reload-plugins`.
 | ---------------- | ----------------------------------------------------------------------------------------- |
 | `packrat:ask`    | Answers questions about production: pull requests, Packrat links, SQL queries and checks. |
 | `packrat:checks` | Drafts the checks Packrat runs after a pull request deploys.                              |
+| `packrat:setup`  | Sets up Packrat for the repository you're in, from sign-in to the setup pull request.     |
 
 To work on the plugin itself, see [CONTRIBUTING.md](CONTRIBUTING.md).

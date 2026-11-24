@@ -65,6 +65,9 @@ let waiting: Pr[] = []
 let checkedAt = 0
 let isRefreshing = false
 let lastError: string | null = null
+// The CLI exits 3 when no app is connected to the repository, which the pane shows as a step to take, not an error.
+const NOT_CONNECTED = 3
+let unconnected = false
 const openPulls = new Set<number>()
 type Tab = 'pulls' | 'issues'
 let tab: Tab = 'pulls'
@@ -117,8 +120,12 @@ async function detectRepo($: Api) {
 
 async function readPull($: Api, number: number): Promise<PullAnswer | null> {
   const shown = await $.process.run([cli, 'pr', 'show', String(number), '--json'], { cwd: root, timeoutMs: 30_000 })
+  if (shown.exitCode === NOT_CONNECTED) {
+    unconnected = true
+    return null
+  }
   if (shown.exitCode !== 0) {
-    fail($, `${cli} pr show ${number}: ${shown.stderr.trim().split('\n')[0] ?? `exit ${shown.exitCode}`}`)
+    fail($, `packrat pr show ${number}: ${shown.stderr.trim().split('\n')[0] ?? `exit ${shown.exitCode}`}`)
     return null
   }
   const answer = JSON.parse(shown.stdout) as PullAnswer
@@ -131,7 +138,7 @@ async function readPull($: Api, number: number): Promise<PullAnswer | null> {
 async function markSeen($: Api, kind: 'pr' | 'issues', id: string) {
   const ran = await $.process.run([cli, kind, 'seen', id], { cwd: root, timeoutMs: 30_000 })
   if (ran.exitCode !== 0) {
-    void log($, `${cli} ${kind} seen ${id}: ${ran.stderr.trim().split('\n')[0] ?? `exit ${ran.exitCode}`}`)
+    void log($, `packrat ${kind} seen ${id}: ${ran.stderr.trim().split('\n')[0] ?? `exit ${ran.exitCode}`}`)
     return
   }
   if (kind === 'pr') {
@@ -165,11 +172,22 @@ function refresh($: Api) {
   return pulling
 }
 
+// One question while the repository is not connected, rather than one for each merged pull request.
+async function isConnected($: Api) {
+  const asked = await $.process.run([cli, 'issues', '--json', '--limit', '1'], { cwd: root, timeoutMs: 30_000 })
+  unconnected = asked.exitCode === NOT_CONNECTED
+  return !unconnected
+}
+
 async function refreshPulls($: Api) {
   if (repo === null || isRefreshing) return
   isRefreshing = true
   $.ui.invalidate('ui.render')
   try {
+    if (unconnected && !(await isConnected($))) {
+      checkedAt = await $.clock.now()
+      return
+    }
     const listed = await $.process.run(
       ['gh', 'pr', 'list', '--state', 'merged', '--limit', String(limit), '--json', 'number,title,url,mergedAt'],
       { cwd: root, timeoutMs: 30_000 },
@@ -180,6 +198,10 @@ async function refreshPulls($: Api) {
     }
     lastError = null
     const merged = JSON.parse(listed.stdout) as Merged[]
+    if (merged.length === 0 && !(await isConnected($))) {
+      checkedAt = await $.clock.now()
+      return
+    }
     const now = await $.clock.now()
     const answers = await Promise.all(
       merged.map(async pr => {
@@ -192,6 +214,11 @@ async function refreshPulls($: Api) {
         return answer
       }),
     )
+    if (unconnected) {
+      prs = []
+      checkedAt = await $.clock.now()
+      return
+    }
     prs = deployed(merged.map((pr, i) => toPr(pr, answers[i] ?? null)))
     const shipped = new Set(prs.map(pr => pr.number))
     if ((await read($, created)).some(pr => shipped.has(pr.number))) await update($, created, list => list.filter(pr => !shipped.has(pr.number)))
@@ -228,9 +255,15 @@ async function refreshIssues($: Api) {
     const argv = [cli, 'issues', '--json', '--limit', String(ISSUES_LISTED)]
     if (app) argv.push('--app', app)
     const listed = await $.process.run(argv, { cwd: root, timeoutMs: 30_000 })
+    unconnected = listed.exitCode === NOT_CONNECTED
+    if (unconnected) {
+      issues = null
+      issuesError = null
+      return
+    }
     if (listed.exitCode !== 0) {
       const said = listed.stderr.trim().split('\n')[0] ?? `exit ${listed.exitCode}`
-      issuesError = said.includes('is not a packrat command') ? 'This packrat CLI is too old to list issues. Run packrat update.' : `${cli} issues: ${said}`
+      issuesError = said.includes('is not a packrat command') ? 'This packrat CLI is too old to list issues. Run packrat update.' : `packrat issues: ${said}`
       void log($, issuesError)
       return
     }
@@ -442,7 +475,14 @@ export const register: Register = (on, options) => {
       const otherLinks = (pr: Pr) =>
         pr.issues.filter(link => !link.check || !pr.checks.some(check => check.id === link.check)).map(link => linkLine(pr, link, '│ '))
 
-      const pullsBody = (
+      const setUp = (
+        <Box flexDirection="column">
+          <Text>Packrat is not set up for {repo} yet.</Text>
+          <Text dimColor>Ask Claude to set up Packrat in this app.</Text>
+        </Box>
+      )
+
+      const pullsBody = unconnected ? setUp : (
         <Box flexDirection="column">
           <Text>
             {summary(prs).map((part, i) => (
@@ -510,7 +550,7 @@ export const register: Register = (on, options) => {
       const listed = issues?.issues ?? []
       const env = knownApp()?.split('/')[1] ?? 'production'
 
-      const issuesBody = (
+      const issuesBody = unconnected ? setUp : (
         <Box flexDirection="column">
           <Text>
             {issueSummary(listed).map((part, i) => (
