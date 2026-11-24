@@ -103,13 +103,73 @@ Say a status is below 500 unless the change is about a status code: a client's 4
 
 A pull request holds at most 10 checks.
 
+## A change to a page
+
+When the change alters what a page shows or does (a view, a stylesheet, a JavaScript controller), check what
+visitors did on the page. Browser events show:
+
+- **Clicks, JavaScript errors, the page's requests and where people go next**, in `packrat_replay_events`: one row
+  for each page view, click, request and error, with `kind`, `detail` (what it is about), `url` (the page it
+  happened on), `version`, `device` (`desktop`, `mobile`, `tablet` or `bot`) and `viewport_width`. A session's rows
+  share a `replay_id`, so its `page` rows in order are the pages it went through.
+- **How fast the page is**, from its view spans in `packrat_spans`: `scope_name = 'packrat.browser'`, named by the
+  page's path, with `browser.web_vital.lcp.value`, `.cls.value` and `.inp.value` in `span_attributes`. A view's span
+  arrives about six minutes after the visitor leaves the page.
+
+First find out whether the page sends browser events. Count its views over the last week:
+
+```sql
+SELECT count(*) AS views FROM packrat_replay_events(since := now() - INTERVAL 7 DAY)
+WHERE kind = 'page' AND url LIKE '%/settings%'
+```
+
+For a new page, count a page the same controller already renders.
+
+- **The page has views:** write the check on browser events. Count in `seen` the views of the changed page on the
+  deployed version, and size `min_seen` from the views you counted.
+- **It has none:** the app sends no browser events, or not from this page. Check the request the change makes in
+  `packrat_traces` instead. If it makes none, declare `{"none": "…"}` and say the page sends no browser events. Do
+  not turn browser events on in the pull request: which pages send them is the developer's choice.
+
+A click's `detail` names the element by its tag, its id and its text, such as `button#export "Export"`. An element
+with no id is named by the nearest ancestor that has one, so give the element the change adds an `id`, and match on
+it. Look at a recent click on the page with `packrat sql` to see how its elements are named.
+
+- `click`: people used what the change added.
+- `rage click`: an element pressed five times or more with nothing happening. Strong evidence something is broken.
+- `error click`: a click followed by a JavaScript error.
+- `dead click`: weak evidence on its own, because some clicks the page did answer are reported as dead. Do not fail
+  a check on it alone.
+
+When the change is about layout, split by `device` or `viewport_width`: a page that works on a desktop can break on a
+phone. Nothing records how a page looks, so a change to how it looks and not to what it does cannot be checked:
+declare `{"none": …}` for it.
+
+```json
+[
+  { "title": "People export from the settings page",
+    "claim": "At least one person who opens the settings page clicks the new Export button.",
+    "sql": "SELECT count(*) FILTER (WHERE kind = 'page') AS seen, count(*) FILTER (WHERE kind = 'click' AND detail LIKE '%#export%') AS clicked FROM packrat_replay_events(since := getvariable('deployed_at'), until := getvariable('until')) WHERE url LIKE '%/settings%' AND version = getvariable('version')",
+    "pass_when": "clicked >= 1",
+    "window": "3d" },
+  { "title": "The settings page loads faster on phones",
+    "claim": "The p75 LCP of the settings page on phones is under 2500 ms, down from about 4100 ms.",
+    "sql": "SELECT count(*) AS seen, quantile_cont(TRY_CAST(json_extract_string(span_attributes, '$.\"browser.web_vital.lcp.value\"') AS DOUBLE), 0.75) AS lcp_p75 FROM packrat_spans(since := getvariable('deployed_at'), until := getvariable('until')) WHERE scope_name = 'packrat.browser' AND name = '/settings' AND json_extract_string(span_attributes, '$.\"device.type\"') = 'mobile' AND json_extract_string(span_attributes, '$.\"browser.web_vital.lcp.value\"') IS NOT NULL",
+    "pass_when": "lcp_p75 < 2500",
+    "fail_when": "lcp_p75 >= 2500",
+    "min_seen": 30,
+    "window": "3d" }
+]
+```
+
 ## Draft once, before the pull request
 
 Draft the checks when the change is ready to open, from the whole diff, not after each edit. If no data
 production records would show a result, add the instrumentation first, such as an OpenTelemetry span
 attribute that records the outcome (the number of rows a job wrote, or the code path a request took), and
 commit it on the same branch. The instrumentation then ships with the change, and the checks have data
-from the first run. An attribute the change adds is missing before the deploy; that is expected.
+from the first run. An attribute the change adds is missing before the deploy; that is expected. For a change to
+a page, the instrumentation is an `id` on the element it adds; see "A change to a page".
 
 Check a draft yourself with `packrat pr checks set --dry-run --file <draft>`. Packrat runs each check's SQL once:
 
