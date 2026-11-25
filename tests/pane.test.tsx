@@ -502,3 +502,45 @@ test('a changed pull request draws a new chip and a count on its tab, and openin
   expect(opened).toEqual([`https://packrat.sh/orgs/org_abc/apps/colorbook/production/checks/${passed.id}`])
   expect(JSON.stringify(await pane.drawn())).not.toContain('" new "')
 })
+
+test('a pr show that throws keeps the row it drew last, and the next poll reads it again', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  let throws = false
+  let reads = 0
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (argv.includes('issues --json')) return answer(JSON.stringify({ app: 'colorbook/production', org: 'org_a', issues: [] }))
+    if (argv.endsWith('pr show 572 --json')) {
+      reads += 1
+      if (throws) throw new Error('aborted: still running after 30000ms')
+      return answer(JSON.stringify(shown))
+    }
+    throw new Error(`unexpected ${argv}`)
+  })
+  on('ui.open', async () => placed)
+  on('ui.panes', async () => ({ value: [{ id: 'packrat', title: 'Packrat', isShown: true, isFocused: true, isPlaced: true }] }))
+
+  await $.command.run(typed())
+  await clock.settle()
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat', isFocused: true, bodyColumns: 80, placement: 'dock' } as never,
+  })
+
+  throws = true
+  const before = reads
+  await clock.advance(60 * 1000)
+  expect(reads).toBe(before + 1)
+  const drawn = JSON.stringify(await pane.drawn())
+  expect(drawn).toContain("Show the current month's pace")
+  expect(drawn).toContain('packrat pr show 572')
+
+  throws = false
+  await clock.advance(60 * 1000)
+  expect(reads).toBe(before + 2)
+  expect(JSON.stringify(await pane.drawn())).not.toContain('packrat pr show 572')
+})
