@@ -84,6 +84,8 @@ const openIssues = new Set<string>()
 const freshChecks = new Map<number, Set<string>>()
 // Answers that will not change soon, so each poll asks Packrat only about the pull requests still in play.
 const kept = new Map<number, { answer: PullAnswer; until: number }>()
+// The last answer for each pull request, drawn when a later read fails.
+const lastRead = new Map<number, PullAnswer>()
 let isStarted = false
 let isStarting = false
 let pluginOptions: Parameters<Register>[1] = {}
@@ -119,16 +121,22 @@ async function detectRepo($: Api) {
 }
 
 async function readPull($: Api, number: number): Promise<PullAnswer | null> {
-  const shown = await $.process.run([cli, 'pr', 'show', String(number), '--json'], { cwd: root, timeoutMs: 30_000 })
+  // process.run throws on a timeout or a process that fails to start, which would otherwise abort the whole refresh.
+  const shown = await $.process.run([cli, 'pr', 'show', String(number), '--json'], { cwd: root, timeoutMs: 30_000 }).catch((error: unknown) => {
+    fail($, `packrat pr show ${number}: ${String(error)}`)
+    return null
+  })
+  if (shown === null) return lastRead.get(number) ?? null
   if (shown.exitCode === NOT_CONNECTED) {
     unconnected = true
     return null
   }
   if (shown.exitCode !== 0) {
     fail($, `packrat pr show ${number}: ${shown.stderr.trim().split('\n')[0] ?? `exit ${shown.exitCode}`}`)
-    return null
+    return lastRead.get(number) ?? null
   }
   const answer = JSON.parse(shown.stdout) as PullAnswer
+  lastRead.set(number, answer)
   // packrat before 0.1.2 printed no state, so every pull request would read as not verified.
   if (!('state' in answer)) fail($, 'This packrat CLI is too old to show verdicts. Run packrat update.')
   return answer
