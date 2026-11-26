@@ -1,7 +1,7 @@
 ---
 name: ask
-description: Read production data from Packrat. Use when the user asks how a pull request performed in production (a PR number such as "PR 482" or a GitHub PR URL), pastes a packrat.sh or query.packrat.sh link or a line from a Packrat email, asks a question about production (slow requests, errors, incidents, user sessions), or wants something verified in production at a later time.
-argument-hint: "<PR number or URL, Packrat link, or question>"
+description: Read production data from Packrat. Use when the user asks how a pull request performed in production (a PR number such as "PR 482" or a GitHub PR URL), names a Packrat issue by its ID (such as "SHOP-41"), pastes a packrat.sh or query.packrat.sh link or a line from a Packrat email, asks a question about production (slow requests, errors, incidents, user sessions), or wants something verified in production at a later time.
+argument-hint: "<PR number or URL, issue ID, Packrat link, or question>"
 allowed-tools: Bash(packrat:*)
 ---
 
@@ -37,6 +37,18 @@ packrat pr show <number or URL>
 
 Summarize the verdict, the evidence, the suggested next step and any pending checks. Then stop and let
 the user decide what to do next. Do not change code unless the user asks.
+
+## Issues
+
+To read one issue, run:
+
+```bash
+packrat issues show <ID>
+```
+
+It prints the issue's status, severity, counts and summary, and for an error its latest exception with the
+in-app frames. A request that is only an issue ID asks what is going on with it: summarize the issue, then
+stop and let the user decide what to do next. Do not change code unless the user asks.
 
 ## Resolving and archiving
 

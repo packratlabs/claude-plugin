@@ -30,6 +30,7 @@ import {
   isClosed,
   issueLinkParts,
   shownVerdict,
+  issueMention,
   issueUrl,
   linkedIssueUrl,
   linkedPullUrl,
@@ -554,7 +555,7 @@ export const register: Register = (on, options) => {
         }
         $.ui.invalidate('ui.render')
       }
-      const askIssue = (id: string) => void $.prompt.fill({ text: `/packrat:ask what is going on with ${id}`, mode: 'replace' })
+      const addIssue = async (id: string) => void $.prompt.fill(issueMention(id, await $.prompt.read()))
       const listed = issues?.issues ?? []
       const env = knownApp()?.split('/')[1] ?? 'production'
 
@@ -589,7 +590,8 @@ export const register: Register = (on, options) => {
                     ))}
                     <Box flexDirection="row" gap={1}>
                       <Text dimColor>└</Text>
-                      <Button key={`ask-issue-${issue.id}`} label="Ask" dimColor onPress={() => askIssue(issue.id)} />
+                      <Text dimColor>{issue.id}</Text>
+                      <Button key={`add-issue-${issue.id}`} label="Add to prompt" dimColor onPress={() => void addIssue(issue.id)} />
                       {url && <Button key={`open-issue-${issue.id}`} label="View issue" dimColor onPress={() => openPr(url)} />}
                     </Box>
                   </Box>

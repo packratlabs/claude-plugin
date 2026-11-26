@@ -376,6 +376,13 @@ export function issueUrl(issue: Issue, list: { app: string; org?: string }, env:
   return `${site.replace(/\/+$/, '')}/orgs/${list.org}/apps/${app}/issues/${encodeURIComponent(issue.id)}`
 }
 
+// What Add to prompt writes: the ID at the cursor, spaced from the words beside it.
+export function issueMention(id: string, box: { text: string; cursor: number }): { text: string; mode: 'insert' } {
+  const before = box.text.slice(0, box.cursor)
+  const after = box.text.slice(box.cursor)
+  return { text: `${/\S$/.test(before) ? ' ' : ''}${id}${/^\S/.test(after) ? ' ' : ''}`, mode: 'insert' }
+}
+
 // A tab's label, with how many of its rows changed since the person last opened them.
 export const tabLabel = (label: string, unread: number) => (unread > 0 ? `${label} (${unread})` : label)
 
