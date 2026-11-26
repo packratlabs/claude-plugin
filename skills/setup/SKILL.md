@@ -37,10 +37,16 @@ once they say they have.
 
 ## An app with no repository
 
-If the App row lists apps that Packrat already receives data from but that have no repository, ask
-the user which one this repository is, or whether it is a new app. To connect an existing one, ask
-the user to run `packrat setup` in a terminal and pick it, or to connect it on the app's Settings page.
-For a new app, carry on.
+Packrat may already receive data from apps that have no repository. Setup connects the one whose name
+`config/application.rb` gives this app. When none matches, the App row lists them and setup stops. Ask
+the user which one this repository is, or whether it is a new app, then run one of:
+
+```bash
+packrat setup --app <app>
+packrat setup --new
+```
+
+Do not choose for the user.
 
 ## The setup pull request
 
