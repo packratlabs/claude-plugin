@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { type Check, type Pr, checkGlyph, checkUrl, fixedBy, issueLinkParts, shownVerdict, linkedIssueUrl, linkedPullUrl, checkName, checkWhen, counts, createdPull, waitingLine, progress, deployed, isSettled, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
+import { type Check, type Pr, checkGlyph, checkUrl, fixedBy, issueLinkParts, issueMention, shownVerdict, linkedIssueUrl, linkedPullUrl, checkName, checkWhen, counts, createdPull, waitingLine, progress, deployed, isSettled, wrap, rereadAfter, summary, toPr, verdict, verificationUrl } from '../hooks/logic'
 
 const check = (over: Partial<Check>): Check => ({
   id: 'chk_1', title: 'A check', what: 'what', due_at: '2026-11-06T12:00:00Z', closed_at: null,
@@ -175,4 +175,12 @@ test('an issue and another pull request open on the site, in the app the pull re
   expect(linkedIssueUrl(pr, 'COLORBOOK-271', 'https://packrat.sh')).toBe('https://packrat.sh/orgs/org_abc/apps/colorbook/production/issues/COLORBOOK-271')
   expect(linkedPullUrl(pr, 596, 'https://packrat.sh')).toBe('https://packrat.sh/orgs/org_abc/apps/colorbook/production/pulls/596')
   expect(linkedIssueUrl({ ...pr, org: null }, 'COLORBOOK-271', 'https://packrat.sh')).toBeNull()
+})
+
+test('Add to prompt inserts the bare ID at the cursor, spaced from the words beside it', async () => {
+  expect(issueMention('SHOP-41', { text: '', cursor: 0 })).toEqual({ text: 'SHOP-41', mode: 'insert' })
+  expect(issueMention('SHOP-41', { text: 'fix', cursor: 3 })).toEqual({ text: ' SHOP-41', mode: 'insert' })
+  expect(issueMention('SHOP-41', { text: 'fix ', cursor: 4 })).toEqual({ text: 'SHOP-41', mode: 'insert' })
+  expect(issueMention('SHOP-41', { text: 'fix and SHOP-2', cursor: 8 })).toEqual({ text: 'SHOP-41 ', mode: 'insert' })
+  expect(issueMention('SHOP-41', { text: 'fix and', cursor: 3 })).toEqual({ text: ' SHOP-41', mode: 'insert' })
 })

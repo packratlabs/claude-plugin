@@ -144,6 +144,51 @@ test('/packrat issues opens the Issues tab, asking for the app the pull requests
   expect(asked.find(argv => argv.includes(' issues '))).toContain('issues --json --limit 25 --app colorbook/production')
 })
 
+test('an open issue shows its ID, and Add to prompt puts the ID in the draft at the cursor', async ($, on) => {
+  const clock = mock.clock(on, { now: deployedAt + 4 * 60 * 1000 })
+  mock.env(on, { HOME: '/home/dev' })
+  on('session.root', async () => ({ value: '/repo' }))
+  on('process.run', async (_$, e) => {
+    const argv = e.argv.join(' ')
+    if (argv.startsWith('gh repo view')) return answer('a/b\n')
+    if (argv.startsWith('gh pr list')) return answer(JSON.stringify(merged))
+    if (argv.endsWith('pr show 572 --json')) return answer(JSON.stringify(shown))
+    if (argv.includes(' issues --json')) {
+      return answer(JSON.stringify({
+        app: 'colorbook', org: 'org_abc123', period: '14d', issues: [
+          { id: 'COLORBOOK-9', kind: 'detected', title: 'Affiliate links fail', culprit: null, status: 'unresolved', substatus: 'new',
+            severity: 'high', summary: 'Two retailers send no clicks.', events: 12, users: 4, last_seen: null, errors: ['COLORBOOK-3'] },
+        ],
+      }))
+    }
+    throw new Error(`unexpected ${argv}`)
+  })
+  on('ui.open', async () => placed)
+  on('prompt.read', async () => ({ value: { text: 'fix', cursor: 3 } }))
+  const fills: { text: string; mode?: string }[] = []
+  on('prompt.fill', async (_$, e) => {
+    fills.push({ text: e.text, mode: e.mode })
+    return { isFilled: true }
+  })
+
+  await $.command.run(typed('issues'))
+  await clock.settle()
+  const pane = await $.ui.mount({
+    plugin: 'packrat', surface: 'terminal', component: 'Pane', requestId: 'packrat',
+    props: { title: 'Packrat', isFocused: true, bodyColumns: 60, placement: 'dock' } as never,
+  })
+  await (pane as unknown as Pressable).press({ key: 'issue-COLORBOOK-9' })
+  await clock.settle()
+  const drawn = JSON.stringify(await pane.drawn())
+  expect(drawn).toContain('COLORBOOK-9')
+  expect(drawn).toContain('Add to prompt')
+  expect(drawn).not.toContain('"Ask"')
+
+  await (pane as unknown as Pressable).press({ key: 'add-issue-COLORBOOK-9' })
+  await clock.settle()
+  expect(fills).toEqual([{ text: ' COLORBOOK-9', mode: 'insert' }])
+})
+
 test('a pane behind another tab asks Packrat nothing, and an old pending pull request is read every five minutes', async ($, on) => {
   const clock = mock.clock(on, { now: deployedAt + 3 * 60 * 60 * 1000 })
   mock.env(on, { HOME: '/home/dev' })
