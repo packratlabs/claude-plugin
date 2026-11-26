@@ -85,6 +85,11 @@ of each kind:
   `getvariable('until')` (the moment of the run), `getvariable('version')` (the deployed `service.version`),
   and `getvariable('baseline_since')` and `getvariable('baseline_until')` (the same hours a week before). Bound
   every macro by them.
+- **Filter on `version` only in a check with `fail_when` alone.** The window starts at the deploy, and later
+  deploys carry the change too, so a check that passes on what the change does reads the window alone: filtered
+  on `version`, a deploy replaced in minutes leaves it nothing to read. A guard is the exception: the build before
+  the deploy still answers for a few seconds, and a browser tab opened before it sends events for hours, and one of
+  their rows would fail it.
 - **`pass_when`** alone passes the check on the first run where it holds: something the change does appears.
 - **`fail_when`** alone fails it on the first run where it holds, and passes it when the window ends.
 - **Both** judge it once, on the first run where `seen` reaches `min_seen`: a measure. Give the number the claim
@@ -149,7 +154,7 @@ declare `{"none": …}` for it.
 [
   { "title": "People export from the settings page",
     "claim": "At least one person who opens the settings page clicks the new Export button.",
-    "sql": "SELECT count(*) FILTER (WHERE kind = 'page') AS seen, count(*) FILTER (WHERE kind = 'click' AND detail LIKE '%#export%') AS clicked FROM packrat_replay_events(since := getvariable('deployed_at'), until := getvariable('until')) WHERE url LIKE '%/settings%' AND version = getvariable('version')",
+    "sql": "SELECT count(*) FILTER (WHERE kind = 'page') AS seen, count(*) FILTER (WHERE kind = 'click' AND detail LIKE '%#export%') AS clicked FROM packrat_replay_events(since := getvariable('deployed_at'), until := getvariable('until')) WHERE url LIKE '%/settings%'",
     "pass_when": "clicked >= 1",
     "window": "3d" },
   { "title": "The settings page loads faster on phones",
@@ -175,7 +180,7 @@ Check a draft yourself with `packrat pr checks set --dry-run --file <draft>`. Pa
 
 - **A check whose SQL fails** is refused with what DuckDB said. Fix it and try again.
 - **A check that already passes before the deploy** is kept with a warning: passing would prove nothing. Make it
-  read only what the change adds, such as the new attribute or `getvariable('version')`.
+  read only what the change adds, such as the new attribute.
 
 If a check is still refused after two attempts, stop changing it. Send it in the draft as
 `{"title": "…", "claim": "…", "sql": "…", "dropped": "what Packrat said, and why you stopped"}`. It never runs;
